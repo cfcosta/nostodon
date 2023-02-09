@@ -18,6 +18,8 @@
         devShell = pkgs.mkShell {
           nativeBuildInputs = with pkgs; [
             cargo-watch
+            pkg-config
+            openssl
             (rust-bin.stable.latest.default.override {
               extensions = [ "rust-src" "clippy" "rustfmt" "rust-analyzer" ];
             })
