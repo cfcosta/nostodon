@@ -1,5 +1,5 @@
 {
-  description = "An agent to sync mastodon posts to nostr";
+  description = "A daemon for two way syncing between Mastodon and Nostr";
 
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixpkgs-unstable";
