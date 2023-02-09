@@ -1,0 +1,68 @@
+use clap::Parser;
+use eyre::Result;
+use nostr_sdk::prelude::*;
+
+#[derive(Debug, Clone, Default)]
+pub struct Note {
+    pub text: String,
+    pub tags: Vec<nostr_sdk::prelude::Tag>
+}
+
+impl Note {
+    pub fn new_text<T: Into<String>>(text: T) -> Self {
+        Self {
+            text: text.into(),
+            ..Default::default()
+        }
+    }
+}
+
+#[derive(Debug, Clone, Parser)]
+pub struct NostrConfig {
+    #[clap(short = 'k', long = "private-key", env = "NOSTODON_PRIVATE_KEY")]
+    pub private_key: String,
+
+    #[clap(short = 'r', long = "relays", env = "NOSTODON_RELAYS")]
+    pub relays: Vec<String>
+}
+
+#[async_trait::async_trait]
+pub trait NostrClient where Self: Sized {
+    type EventId;
+
+    async fn publish(&self, note: Note) -> Result<Self::EventId>;
+}
+
+#[derive(Debug, Clone)]
+pub struct Nostr {
+    client: Client
+}
+
+impl Nostr {
+    pub async fn connect(config: NostrConfig) -> Result<Self> {
+        let opts = Options::new().wait_for_connection(true).wait_for_send(true);
+        let keypair = Keys::from_sk_str(&config.private_key)?;
+
+        let this = Self {
+            client: Client::new_with_opts(&keypair, opts)
+        };
+
+        for relay in config.relays {
+            println!("Adding relay {relay}");
+            this.client.add_relay(&relay, None).await?;
+        }
+
+        this.client.connect().await;
+
+        Ok(this)
+    }
+}
+
+#[async_trait::async_trait]
+impl NostrClient for Nostr {
+    type EventId = EventId;
+
+    async fn publish(&self, note: Note) -> Result<Self::EventId> {
+        Ok(self.client.publish_text_note(&note.text, &note.tags).await?)
+    }
+}
