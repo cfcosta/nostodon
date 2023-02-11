@@ -3,7 +3,7 @@ use eyre::Result;
 use nostr_sdk::prelude::*;
 use tokio_stream::Stream;
 
-use crate::util::Timeable;
+use crate::metrics::Timeable;
 
 #[derive(Debug, Clone, Default)]
 pub struct Note {

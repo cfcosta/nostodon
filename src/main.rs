@@ -1,10 +1,10 @@
 use clap::Parser;
 use eyre::Result;
 
+mod metrics;
 mod nostr;
-mod util;
 
-use crate::{nostr::NostrClient, util::Timeable};
+use crate::{metrics::Timeable, nostr::NostrClient};
 
 #[derive(Debug, Clone, Parser)]
 pub struct Config {
@@ -14,6 +14,8 @@ pub struct Config {
 
 #[tokio::main]
 async fn main() -> Result<()> {
+    metrics::Provider::setup();
+
     let config = Config::parse();
     let nostr = nostr::Nostr::connect(config.nostr)
         .time_as("nostr.connect")

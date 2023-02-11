@@ -1,9 +1,25 @@
 use std::{future::Future, time::Instant};
 
-use metrics::{register_counter, register_histogram};
+use metrics::{describe_counter, register_counter, register_histogram};
 
 pub const TASK_TIME_ELAPSED: &'static str = "nostodon_task_time_elapsed_ms";
 pub const TASK_TIME_ELAPSED_HISTOGRAM: &'static str = "nostodon_task_elapsed_histogram";
+
+pub struct Provider;
+
+impl Provider {
+    pub fn setup() {
+        describe_counter!(
+            TASK_TIME_ELAPSED,
+            "The cumulative amount of time taken to run a task"
+        );
+
+        describe_counter!(
+            TASK_TIME_ELAPSED_HISTOGRAM,
+            "The historigram for the amount of time (and percentiles) of each task"
+        );
+    }
+}
 
 #[async_trait::async_trait]
 pub trait Timeable<T> {
