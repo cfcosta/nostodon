@@ -14,6 +14,15 @@ pub struct NostrConfig {
     pub relays: Vec<String>,
 }
 
+pub struct UserProfile {
+    pub name: String,
+    pub display_name: String,
+    pub about: String,
+    pub picture: String,
+    pub banner: String,
+    pub nip05: String,
+}
+
 #[async_trait::async_trait]
 pub trait NostrClient
 where
@@ -22,7 +31,7 @@ where
     type EventId;
 
     async fn publish(&self, note: Note) -> Result<Self::EventId>;
-    async fn update_stream(&self) -> Result<Receiver<Note>>;
+    async fn update_user_profile(&self, profile: UserProfile) -> Result<Self::EventId>;
 }
 
 #[derive(Debug, Clone, Default)]
@@ -82,7 +91,7 @@ impl NostrClient for Nostr {
             .await?)
     }
 
-    async fn update_stream(&self) -> Result<Receiver<Note>> {
+    async fn update_user_profile(&self, profile: UserProfile) -> Result<Self::EventId> {
         todo!()
     }
 }

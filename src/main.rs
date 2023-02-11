@@ -1,5 +1,6 @@
 use clap::Parser;
 use eyre::Result;
+use mastodon_async::prelude::Event;
 
 mod mastodon;
 mod metrics;
@@ -21,6 +22,7 @@ async fn main() -> Result<()> {
     metrics::Provider::setup();
 
     let config = Config::parse();
+
     let nostr = nostr::Nostr::connect(config.nostr)
         .time_as("nostr.connect")
         .await?;
@@ -29,7 +31,26 @@ async fn main() -> Result<()> {
         .publish(nostr::Note::new_text("Hello World"))
         .time_as("nostr.publish")
         .await?;
-    dbg!(event_id);
+    let mastodon = mastodon::Mastodon::connect(config.mastodon)?;
 
+    let mut rx = mastodon.update_stream().await?;
+
+    loop {
+        match rx.try_recv() {
+            Ok(ev) => match ev {
+                Event::Delete(id) => {
+                    todo!();
+                }
+                Event::Update(status) => {
+                    dbg!(status);
+                    todo!();
+                }
+                _ => continue,
+            },
+            Err(_) => continue,
+        }
+    }
+
+    #[allow(unreachable_code)]
     Ok(())
 }

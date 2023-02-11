@@ -1,3 +1,5 @@
+use std::time::Duration;
+
 use clap::Parser;
 use eyre::{ErrReport, Result};
 use futures_util::TryStreamExt;
@@ -5,7 +7,10 @@ use mastodon_async::prelude::{Event, StatusId};
 use tokio::{
     sync::broadcast::{self, Receiver, Sender},
     task,
+    time::sleep,
 };
+
+use crate::metrics::Timeable;
 
 #[derive(Debug, Clone, Parser)]
 pub struct MastodonConfig {
@@ -75,16 +80,39 @@ impl MastodonClient for Mastodon {
         let client = self.client.clone();
 
         task::spawn(async move {
-            let stream = client.stream_public().await?;
+            loop {
+                println!("Starting client");
 
-            stream
-                .try_for_each(|event| async {
-                    sender.clone().send(event).unwrap();
+                let stream = match client
+                    .stream_public()
+                    .time_as("mastodon.client_stream_public_init")
+                    .await
+                {
+                    Ok(v) => v,
+                    _ => {
+                        println!("Could not connect to public stream, trying again in 0.5s...");
+                        sleep(Duration::from_millis(500)).await;
 
-                    Ok(())
-                })
-                .await?;
+                        continue;
+                    }
+                };
 
+                stream
+                    .try_for_each(|event| async {
+                        sender
+                            .clone()
+                            .send(event)
+                            .expect("error: mastodon sender has no subscribers");
+
+                        Ok(())
+                    })
+                    .await?;
+
+                println!("Mastodon stream crashed, restarting...");
+                sleep(Duration::from_millis(500)).await;
+            }
+
+            #[allow(unreachable_code)]
             Ok::<_, ErrReport>(())
         });
 
