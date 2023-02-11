@@ -1,15 +1,19 @@
 use clap::Parser;
 use eyre::Result;
 
+mod mastodon;
 mod metrics;
 mod nostr;
 
-use crate::{metrics::Timeable, nostr::NostrClient};
+use crate::{mastodon::MastodonClient, metrics::Timeable, nostr::NostrClient};
 
 #[derive(Debug, Clone, Parser)]
 pub struct Config {
     #[clap(flatten)]
     pub nostr: nostr::NostrConfig,
+
+    #[clap(flatten)]
+    pub mastodon: mastodon::MastodonConfig,
 }
 
 #[tokio::main]

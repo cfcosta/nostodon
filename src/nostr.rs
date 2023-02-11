@@ -1,9 +1,29 @@
 use clap::Parser;
 use eyre::Result;
 use nostr_sdk::prelude::*;
-use tokio_stream::Stream;
+use tokio::sync::broadcast::Receiver;
 
 use crate::metrics::Timeable;
+
+#[derive(Debug, Clone, Parser)]
+pub struct NostrConfig {
+    #[clap(short = 'k', long = "private-key", env = "NOSTODON_NOSTR_PRIVATE_KEY")]
+    pub private_key: String,
+
+    #[clap(short = 'r', long = "relays", env = "NOSTODON_NOSTR_RELAYS")]
+    pub relays: Vec<String>,
+}
+
+#[async_trait::async_trait]
+pub trait NostrClient
+where
+    Self: Sized,
+{
+    type EventId;
+
+    async fn publish(&self, note: Note) -> Result<Self::EventId>;
+    async fn update_stream(&self) -> Result<Receiver<Note>>;
+}
 
 #[derive(Debug, Clone, Default)]
 pub struct Note {
@@ -18,26 +38,6 @@ impl Note {
             ..Default::default()
         }
     }
-}
-
-#[derive(Debug, Clone, Parser)]
-pub struct NostrConfig {
-    #[clap(short = 'k', long = "private-key", env = "NOSTODON_PRIVATE_KEY")]
-    pub private_key: String,
-
-    #[clap(short = 'r', long = "relays", env = "NOSTODON_RELAYS")]
-    pub relays: Vec<String>,
-}
-
-#[async_trait::async_trait]
-pub trait NostrClient
-where
-    Self: Sized,
-{
-    type EventId;
-
-    async fn publish(&self, note: Note) -> Result<Self::EventId>;
-    async fn update_stream<T: Stream>(&self) -> Result<T>;
 }
 
 #[derive(Debug, Clone)]
@@ -55,7 +55,6 @@ impl Nostr {
         };
 
         for relay in config.relays {
-            println!("Adding relay {relay}");
             this.client
                 .add_relay(&relay, None)
                 .time_as("nostr.connect.client_add_relay")
@@ -83,7 +82,7 @@ impl NostrClient for Nostr {
             .await?)
     }
 
-    async fn update_stream<T: Stream>(&self) -> Result<T> {
+    async fn update_stream(&self) -> Result<Receiver<Note>> {
         todo!()
     }
 }
