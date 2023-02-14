@@ -23,7 +23,16 @@
             (rust-bin.stable.latest.default.override {
               extensions = [ "rust-src" "clippy" "rustfmt" "rust-analyzer" ];
             })
+            sqlx-cli
+            pgcli
           ];
+
+          DATABASE_URL = "postgres://nostodon:nostodon@localhost:5432/nostodon";
+          PGHOST = "127.0.0.1";
+          PGPORT = "5432";
+          PGDATABASE = "nostodon";
+          PGUSER = "nostodon";
+          PGPASSWORD = "nostodon";
         };
       });
 }

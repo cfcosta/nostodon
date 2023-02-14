@@ -1,0 +1,16 @@
+version: '3'
+
+services:
+  postgres:
+    image: postgres:latest
+    ports:
+      - "5432:5432"
+    environment:
+      POSTGRES_USER: nostodon
+      POSTGRES_PASSWORD: nostodon
+      POSTGRES_DB: nostodon
+    networks:
+        - nostodon
+
+networks:
+  nostodon:
