@@ -1,8 +1,10 @@
 use eyre::Result;
+use nostr_sdk::prelude::Keys;
 use uuid::Uuid;
 
 pub mod postgres;
 
+#[derive(Debug, Clone)]
 pub struct Profile {
     pub instance_id: Uuid,
     pub user_id: Uuid,
@@ -37,4 +39,14 @@ pub trait StorageProvider {
     async fn update_profile(&self, user: Profile) -> Result<ChangeResult>;
     async fn add_post(&self, post: MastodonPost) -> Result<ChangeResult>;
     async fn delete_post(&self, mastodon_id: String) -> Result<ChangeResult>;
+    async fn fetch_credentials(&self, user_id: Uuid) -> Result<Keys>;
+    async fn fetch_or_create_instance<T: Into<String> + Send>(
+        &self,
+        instance_url: T,
+    ) -> Result<Uuid>;
+    async fn fetch_or_create_user<T: Into<String> + Send>(
+        &self,
+        instance_id: Uuid,
+        username: T,
+    ) -> Result<Uuid>;
 }

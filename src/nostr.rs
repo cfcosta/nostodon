@@ -3,7 +3,7 @@ use eyre::Result;
 use nostr_sdk::prelude::*;
 use tokio::sync::broadcast::Receiver;
 
-use crate::metrics::Timeable;
+use crate::health::Timeable;
 
 #[derive(Debug, Clone, Parser)]
 pub struct NostrConfig {

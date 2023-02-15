@@ -1,8 +1,10 @@
 use clap::Parser;
 use eyre::Result;
+use nostr_sdk::prelude::{FromSkStr, Keys, ToBech32};
 use sqlx::{postgres::PgPoolOptions, Pool};
+use uuid::Uuid;
 
-use crate::metrics::Timeable;
+use crate::health::Timeable;
 
 use super::{ChangeResult, MastodonPost, Profile, StorageProvider};
 
@@ -10,6 +12,30 @@ use super::{ChangeResult, MastodonPost, Profile, StorageProvider};
 pub struct PostgresConfig {
     #[clap(short = 'd', long = "database-url", env = "NOSTODON_DATABASE_URL")]
     pub url: String,
+}
+
+pub struct IdContainer {
+    pub result: Uuid,
+}
+
+pub struct ResultContainer {
+    pub result: Option<String>,
+}
+
+pub struct KeysContainer {
+    pub nostr_public_key: String,
+    pub nostr_private_key: String,
+}
+
+impl ResultContainer {
+    pub fn to_change_result(&self) -> Result<ChangeResult> {
+        let res = match self.result.as_deref() {
+            Some("unchanged") | None => ChangeResult::Unchanged,
+            Some(id) => ChangeResult::Changed(Uuid::parse_str(id)?),
+        };
+
+        Ok(res)
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -40,13 +66,95 @@ impl StorageProvider for Postgres {
         Ok(())
     }
 
-    async fn update_profile(&self, user: Profile) -> Result<ChangeResult> {
+    async fn update_profile(&self, profile: Profile) -> Result<ChangeResult> {
+        sqlx::query_as!(
+            ResultContainer,
+            "insert into profiles
+                (instance_id, user_id, name, display_name, about, picture, nip05)
+            values
+                ($1, $2, $3, $4, $5, $6, $7)
+            on conflict (user_id) do update set
+                name = $3, display_name = $4, about = $5, picture = $6, nip05 = $7
+            returning case when xmax = 0 then id::text else 'unchanged' end as result",
+            profile.instance_id,
+            profile.user_id,
+            profile.name,
+            profile.display_name,
+            profile.about,
+            profile.picture,
+            profile.nip05
+        )
+        .fetch_one(&self.pool)
+        .time_as("storage.update_profile")
+        .await?
+        .to_change_result()
+    }
+
+    async fn add_post(&self, _post: MastodonPost) -> Result<ChangeResult> {
         todo!()
     }
-    async fn add_post(&self, post: MastodonPost) -> Result<ChangeResult> {
+
+    async fn delete_post(&self, _mastodon_id: String) -> Result<ChangeResult> {
         todo!()
     }
-    async fn delete_post(&self, mastodon_id: String) -> Result<ChangeResult> {
-        todo!()
+
+    async fn fetch_credentials(&self, user_id: Uuid) -> Result<Keys> {
+        let result = sqlx::query_as!(
+            KeysContainer,
+            "select nostr_public_key, nostr_private_key from users where id = $1 limit 1",
+            user_id
+        )
+        .fetch_one(&self.pool)
+        .await?;
+
+        Ok(Keys::from_sk_str(&result.nostr_private_key)?)
+    }
+
+    async fn fetch_or_create_instance<T: Into<String> + Send>(
+        &self,
+        instance_url: T,
+    ) -> Result<Uuid> {
+        let instance_url: String = instance_url.into();
+
+        let result = sqlx::query_as!(
+            IdContainer,
+            "insert into mastodon_instances (url, blacklisted)
+            values ($1, false)
+            on conflict (url) do update set
+                url = $1
+            returning id as result",
+            instance_url
+        )
+        .fetch_one(&self.pool)
+        .time_as("storage.fetch_or_create_instance")
+        .await?;
+
+        Ok(result.result)
+    }
+
+    async fn fetch_or_create_user<T: Into<String> + Send>(
+        &self,
+        instance_id: Uuid,
+        username: T,
+    ) -> Result<Uuid> {
+        let new_keypair = Keys::generate();
+
+        let result = sqlx::query_as!(
+            IdContainer,
+            "insert into users
+                (instance_id, nostr_public_key, nostr_private_key, mastodon_user)
+            values ($1, $2, $3, $4)
+            on conflict (mastodon_user) do update set instance_id = $1
+            returning id as result",
+            instance_id,
+            new_keypair.public_key().to_bech32()?,
+            new_keypair.secret_key().unwrap().to_bech32()?,
+            username.into()
+        )
+        .fetch_one(&self.pool)
+        .time_as("storage.fetch_or_create_user")
+        .await?;
+
+        Ok(result.result)
     }
 }

@@ -47,7 +47,7 @@ create unique index if not exists mastodon_posts_nostr_id_unique_idx on mastodon
 create table mastodon_instances (
     id uuid primary key default uuid_generate_v4(),
     url text not null,
-    blacklisted boolean not null
+    blacklisted boolean not null default false
 );
 
 create unique index if not exists mastodon_instances_url_unique_idx on mastodon_instances (url);

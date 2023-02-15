@@ -1,5 +1,5 @@
 {
-  description = "A daemon for two way syncing between Mastodon and Nostr";
+  description = "A daemon for two way syncing between mastodon and nostr";
 
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixpkgs-unstable";
@@ -15,12 +15,13 @@
         overlays = [ rust-overlay.overlays.default ];
         pkgs = import nixpkgs { inherit system overlays; };
 
-        database = {
+        database = rec {
           host = "127.0.0.1";
           port = "5432";
           database = "nostodon";
           user = "nostodon";
           password = "nostodon";
+          full_url = "postgres://${user}:${password}@${host}:${port}/${database}";
         };
       in {
         devShell = pkgs.mkShell {
@@ -35,14 +36,14 @@
             pgcli
           ];
 
-          NOSTODON_DATABASE_URL =
-            "postgres://${database.user}:${database.password}@${database.host}:${database.port}/${database.database}";
+          NOSTODON_DATABASE_URL = database.full_url;
+          DATABASE_URL = database.full_url;
 
-          HOST = database.host;
-          PORT = database.port;
-          DATABASE = database.database;
-          USER = database.user;
-          PASSWORD = database.password;
+          PGHOST = database.host;
+          PGPORT = database.port;
+          PGDATABASE = database.database;
+          PGUSER = database.user;
+          PGPASSWORD = database.password;
         };
       });
 }

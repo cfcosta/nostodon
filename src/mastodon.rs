@@ -6,11 +6,10 @@ use futures_util::TryStreamExt;
 use mastodon_async::prelude::{Event, StatusId};
 use tokio::{
     sync::broadcast::{self, Receiver, Sender},
-    task,
-    time::sleep,
+    task, time,
 };
 
-use crate::metrics::Timeable;
+use crate::health::{Timeable, Timeoutable};
 
 #[derive(Debug, Clone, Parser)]
 pub struct MastodonConfig {
@@ -54,19 +53,19 @@ pub trait MastodonClient {
 }
 
 pub struct Mastodon {
+    config: MastodonConfig,
     sender: Sender<Event>,
     _receiver: Receiver<Event>,
-    client: mastodon_async::Mastodon,
 }
 
 impl Mastodon {
     pub fn connect(config: MastodonConfig) -> Result<Self> {
-        let (sender, _receiver) = broadcast::channel(16);
+        let (sender, _receiver) = broadcast::channel(128);
 
         Ok(Self {
+            config,
             sender,
             _receiver,
-            client: mastodon_async::Mastodon::from(config.as_data()),
         })
     }
 }
@@ -77,43 +76,50 @@ impl MastodonClient for Mastodon {
 
     async fn update_stream(&self) -> Result<Receiver<Event>> {
         let sender = self.sender.clone();
-        let client = self.client.clone();
+        let config = self.config.clone();
 
         task::spawn(async move {
-            loop {
-                println!("Starting client");
+            let task = || async {
+                let sender = sender.clone();
+                let client = mastodon_async::Mastodon::from(config.clone().as_data());
 
-                let stream = match client
-                    .stream_public()
-                    .time_as("mastodon.client_stream_public_init")
+                let mut stream = Box::pin(
+                    client
+                        .stream_public()
+                        .time_as("mastodon.client_stream_public_init")
+                        .await?
+                        .into_stream(),
+                );
+
+                while let Ok(Ok(Some(event))) = stream
+                    .try_next()
+                    .time_as("mastodon.client_stream_get_next")
+                    .with_timeout(Duration::from_secs(20))
                     .await
                 {
-                    Ok(v) => v,
-                    _ => {
-                        println!("Could not connect to public stream, trying again in 0.5s...");
-                        sleep(Duration::from_millis(500)).await;
+                    sender
+                        .clone()
+                        .send(event)
+                        .expect("error: mastodon sender has no subscribers");
+                }
 
+                drop(stream);
+
+                Ok::<_, ErrReport>(())
+            };
+
+            loop {
+                match task().await {
+                    Ok(_) => continue,
+                    Err(e) => {
+                        println!("Got an error: {}", e);
+                        println!("Stream died, restarting...");
+
+                        time::sleep(Duration::from_millis(100)).await;
                         continue;
                     }
-                };
-
-                stream
-                    .try_for_each(|event| async {
-                        sender
-                            .clone()
-                            .send(event)
-                            .expect("error: mastodon sender has no subscribers");
-
-                        Ok(())
-                    })
-                    .await?;
-
-                println!("Mastodon stream crashed, restarting...");
-                sleep(Duration::from_millis(500)).await;
+                }
             }
-
-            #[allow(unreachable_code)]
-            Ok::<_, ErrReport>(())
         });
 
         Ok(self.sender.subscribe())
