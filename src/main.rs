@@ -5,8 +5,9 @@ use mastodon_async::prelude::Event;
 mod mastodon;
 mod metrics;
 mod nostr;
+mod storage;
 
-use crate::{mastodon::MastodonClient, metrics::Timeable, nostr::NostrClient};
+use crate::{mastodon::MastodonClient, metrics::Timeable, nostr::NostrClient, storage::*};
 
 #[derive(Debug, Clone, Parser)]
 pub struct Config {
@@ -15,13 +16,20 @@ pub struct Config {
 
     #[clap(flatten)]
     pub mastodon: mastodon::MastodonConfig,
+
+    #[clap(flatten)]
+    pub postgres: postgres::PostgresConfig,
 }
 
 #[tokio::main]
 async fn main() -> Result<()> {
     metrics::Provider::setup();
+    // TODO: init migrations
 
     let config = Config::parse();
+
+    let postgres = postgres::Postgres::init(config.postgres).await?;
+    postgres.health_check().await?;
 
     let nostr = nostr::Nostr::connect(config.nostr)
         .time_as("nostr.connect")

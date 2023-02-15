@@ -14,6 +14,14 @@
       let
         overlays = [ rust-overlay.overlays.default ];
         pkgs = import nixpkgs { inherit system overlays; };
+
+        database = {
+          host = "127.0.0.1";
+          port = "5432";
+          database = "nostodon";
+          user = "nostodon";
+          password = "nostodon";
+        };
       in {
         devShell = pkgs.mkShell {
           nativeBuildInputs = with pkgs; [
@@ -27,12 +35,14 @@
             pgcli
           ];
 
-          DATABASE_URL = "postgres://nostodon:nostodon@localhost:5432/nostodon";
-          PGHOST = "127.0.0.1";
-          PGPORT = "5432";
-          PGDATABASE = "nostodon";
-          PGUSER = "nostodon";
-          PGPASSWORD = "nostodon";
+          NOSTODON_DATABASE_URL =
+            "postgres://${database.user}:${database.password}@${database.host}:${database.port}/${database.database}";
+
+          HOST = database.host;
+          PORT = database.port;
+          DATABASE = database.database;
+          USER = database.user;
+          PASSWORD = database.password;
         };
       });
 }
