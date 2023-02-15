@@ -55,15 +55,14 @@ pub struct Nostr {
 }
 
 impl Nostr {
-    pub async fn connect(config: NostrConfig) -> Result<Self> {
+    pub async fn connect(keypair: Keys, relays: Vec<String>) -> Result<Self> {
         let opts = Options::new().wait_for_connection(true).wait_for_send(true);
-        let keypair = Keys::from_sk_str(&config.private_key)?;
 
         let this = Self {
             client: Client::new_with_opts(&keypair, opts),
         };
 
-        for relay in config.relays {
+        for relay in relays {
             this.client
                 .add_relay(&relay, None)
                 .time_as("nostr.connect.client_add_relay")

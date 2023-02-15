@@ -2,7 +2,7 @@ use ::metrics::increment_counter;
 use clap::Parser;
 use eyre::Result;
 use mastodon_async::{prelude::Event, Visibility};
-use nostr_sdk::prelude::Url;
+use nostr_sdk::prelude::{ToBech32, Url};
 
 mod health;
 mod mastodon;
@@ -12,7 +12,7 @@ mod storage;
 use crate::{
     health::{Timeable, EVENTS_PROCESSED},
     mastodon::MastodonClient,
-    nostr::NostrClient,
+    nostr::{NostrClient, NostrConfig},
     storage::*,
 };
 
@@ -46,18 +46,11 @@ async fn main() -> Result<()> {
 
     let config = Config::parse();
 
-    let postgres = postgres::Postgres::init(config.postgres).await?;
+    let postgres = postgres::Postgres::init(config.clone().postgres).await?;
     postgres.health_check().await?;
 
-    let nostr = nostr::Nostr::connect(config.nostr)
-        .time_as("nostr.connect")
-        .await?;
-
-    let event_id = nostr
-        .publish(nostr::Note::new_text("Hello World"))
-        .time_as("nostr.publish")
-        .await?;
-    let mastodon = mastodon::Mastodon::connect(config.mastodon)?;
+    let mastodon = mastodon::Mastodon::connect(config.clone().mastodon)?;
+    let nostr_config = config.clone().nostr;
 
     let mut rx = mastodon.update_stream().await?;
 
@@ -97,9 +90,24 @@ async fn main() -> Result<()> {
                         status.account.username.clone(),
                         instance_url.host().unwrap()
                     );
+
                     let user_id = postgres
                         .fetch_or_create_user(instance_id, nip05.clone())
                         .await?;
+
+                    let creds = postgres.fetch_credentials(user_id).await?;
+
+                    let nostr = nostr::Nostr::connect(creds, config.nostr.clone().relays)
+                        .time_as("nostr.connect")
+                        .await?;
+
+                    let event_id = nostr
+                        .publish(nostr::Note::new_text(html2md::parse_html(&status.content)))
+                        .time_as("nostr.publish")
+                        .await?;
+
+                    dbg!(event_id.to_bech32()?);
+                    break;
 
                     let profile = Profile {
                         instance_id,
@@ -112,6 +120,16 @@ async fn main() -> Result<()> {
                     };
 
                     postgres.update_profile(profile).await?;
+
+                    let post = MastodonPost {
+                        instance_id,
+                        user_id,
+                        mastodon_id: status.id.to_string(),
+                        nostr_id: "123".to_string(),
+                        status: MastodonPostStatus::Posted,
+                    };
+
+                    postgres.add_post(post).await?;
                 }
                 _ => continue,
             },
