@@ -1,15 +1,11 @@
 use clap::Parser;
 use eyre::Result;
 use nostr_sdk::prelude::*;
-use tokio::sync::broadcast::Receiver;
 
 use crate::health::Timeable;
 
 #[derive(Debug, Clone, Parser)]
 pub struct NostrConfig {
-    #[clap(short = 'k', long = "private-key", env = "NOSTODON_NOSTR_PRIVATE_KEY")]
-    pub private_key: String,
-
     #[clap(short = 'r', long = "relays", env = "NOSTODON_NOSTR_RELAYS")]
     pub relays: Vec<String>,
 }

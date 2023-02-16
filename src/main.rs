@@ -12,7 +12,7 @@ mod storage;
 use crate::{
     health::{Timeable, EVENTS_PROCESSED},
     mastodon::MastodonClient,
-    nostr::{NostrClient, NostrConfig},
+    nostr::NostrClient,
     storage::*,
 };
 
@@ -50,7 +50,6 @@ async fn main() -> Result<()> {
     postgres.health_check().await?;
 
     let mastodon = mastodon::Mastodon::connect(config.clone().mastodon)?;
-    let nostr_config = config.clone().nostr;
 
     let mut rx = mastodon.update_stream().await?;
 
