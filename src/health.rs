@@ -4,9 +4,11 @@ use std::{
 };
 
 use eyre::Result;
-use metrics::{describe_counter, register_counter, register_histogram};
+use metrics::{describe_counter, register_counter, register_histogram, increment_counter};
 use tokio::time::timeout_at;
 
+pub const TASK_COUNT: &'static str = "nostodon_task_count";
+pub const TASK_TIMEOUT_COUNT: &'static str = "nostodon_task_timeout_count";
 pub const TASK_TIME_ELAPSED: &'static str = "nostodon_task_time_elapsed_ms";
 pub const TASK_TIME_ELAPSED_HISTOGRAM: &'static str = "nostodon_task_elapsed_histogram";
 pub const EVENTS_PROCESSED: &'static str = "nostodon_mastodon_events_processed_count";
@@ -51,6 +53,7 @@ where
         let result = self.await;
         let diff = Instant::now() - start;
 
+        increment_counter!(TASK_COUNT, "task" => task_name_str.clone());
         register_counter!(TASK_TIME_ELAPSED, "task" => task_name_str.clone())
             .increment(diff.as_millis() as u64);
         register_histogram!(TASK_TIME_ELAPSED_HISTOGRAM, "task" => task_name_str.clone())
@@ -76,6 +79,12 @@ where
     B: Future<Output = A> + Send,
 {
     async fn with_timeout(self, deadline: Duration) -> Result<A> {
-        Ok(timeout_at((Instant::now() + deadline).into(), self).await?)
+        let result = timeout_at((Instant::now() + deadline).into(), self).await;
+
+        if result.is_err() {
+            increment_counter!(TASK_TIMEOUT_COUNT);
+        }
+
+        Ok(result?)
     }
 }
