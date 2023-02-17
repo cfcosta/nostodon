@@ -1,12 +1,11 @@
 use clap::Parser;
-use eyre::Result;
+use eyre::{eyre, Result};
+use mastodon_async::prelude::Status;
 use nostr_sdk::prelude::{FromSkStr, Keys, ToBech32};
 use sqlx::{postgres::PgPoolOptions, Pool};
 use uuid::Uuid;
 
-use crate::{health::Timeable, storage::MastodonPostStatus};
-
-use super::{ChangeResult, MastodonPost, MastodonServer, Profile, StorageProvider};
+use crate::{health::Timeable, util::extract_instance_url};
 
 #[derive(Debug, Clone, Parser)]
 pub struct PostgresConfig {
@@ -39,6 +38,93 @@ impl ResultContainer {
 }
 
 #[derive(Debug, Clone)]
+pub struct Profile {
+    pub instance_id: Uuid,
+    pub user_id: Uuid,
+    pub name: String,
+    pub display_name: String,
+    pub about: String,
+    pub picture: String,
+    pub nip05: String,
+    pub banner: String,
+}
+
+impl Profile {
+    pub fn build(instance_id: Uuid, user_id: Uuid, status: &Status) -> Result<Self> {
+        let url = status
+            .url
+            .as_ref()
+            .ok_or_else(|| eyre!("failed to extract instance url"))?;
+        let instance_url = extract_instance_url(url)?;
+
+        let nip05 = format!(
+            "{}.{}",
+            status.account.username.clone(),
+            instance_url.host().unwrap()
+        );
+
+        Ok(Self {
+            instance_id,
+            name: status.account.username.clone(),
+            display_name: status.account.display_name.clone(),
+            about: status.account.note.clone(),
+            user_id,
+            nip05,
+            picture: status.account.avatar.clone(),
+            banner: status.account.header.clone(),
+        })
+    }
+}
+
+#[derive(sqlx::Type)]
+#[sqlx(type_name = "mastodon_post_status")]
+#[sqlx(rename_all = "lowercase")]
+pub enum MastodonPostStatus {
+    Posted,
+    Deleted,
+}
+
+#[derive(Debug, Clone)]
+pub struct MastodonServer {
+    pub instance_url: String,
+    pub client_key: String,
+    pub client_secret: String,
+    pub redirect_url: String,
+    pub token: String,
+}
+
+impl MastodonServer {
+    pub fn as_data(self) -> mastodon_async::Data {
+        mastodon_async::Data {
+            base: self.instance_url.into(),
+            client_id: self.client_key.into(),
+            client_secret: self.client_secret.into(),
+            redirect: self.redirect_url.into(),
+            token: self.token.into(),
+        }
+    }
+}
+
+pub struct MastodonPost {
+    pub instance_id: Uuid,
+    pub user_id: Uuid,
+    pub mastodon_id: String,
+    pub nostr_id: String,
+    pub status: MastodonPostStatus,
+}
+
+pub enum ChangeResult {
+    Changed(Uuid),
+    Unchanged,
+}
+
+impl ChangeResult {
+    pub fn changed(&self) -> bool {
+        matches!(self, ChangeResult::Changed(_))
+    }
+}
+
+#[derive(Debug, Clone)]
 pub struct Postgres {
     pool: Pool<sqlx::Postgres>,
 }
@@ -53,11 +139,8 @@ impl Postgres {
 
         Ok(Self { pool })
     }
-}
 
-#[async_trait::async_trait]
-impl StorageProvider for Postgres {
-    async fn health_check(&self) -> Result<()> {
+    pub async fn health_check(&self) -> Result<()> {
         sqlx::query("select 1")
             .execute(&self.pool)
             .time_as("storage.health_check")
@@ -66,12 +149,12 @@ impl StorageProvider for Postgres {
         Ok(())
     }
 
-    async fn fetch_servers(&self) -> Result<Vec<MastodonServer>> {
+    pub async fn fetch_servers(&self) -> Result<Vec<MastodonServer>> {
         Ok(sqlx::query_as!(MastodonServer, "select instance_url, client_key, client_secret, redirect_url, token from mastodon_servers")
             .fetch_all(&self.pool).time_as("storage.fetch_servers").await?)
     }
 
-    async fn update_profile(&self, profile: Profile) -> Result<ChangeResult> {
+    pub async fn update_profile(&self, profile: Profile) -> Result<ChangeResult> {
         sqlx::query_as!(
             ResultContainer,
             "insert into profiles
@@ -95,7 +178,7 @@ impl StorageProvider for Postgres {
         .to_change_result()
     }
 
-    async fn add_post(&self, post: MastodonPost) -> Result<ChangeResult> {
+    pub async fn add_post(&self, post: MastodonPost) -> Result<ChangeResult> {
         let result = sqlx::query_as!(
             IdContainer,
             r#"insert into mastodon_posts
@@ -119,7 +202,7 @@ impl StorageProvider for Postgres {
         }
     }
 
-    async fn delete_post(&self, mastodon_id: String) -> Result<Option<(Uuid, String)>> {
+    pub async fn delete_post(&self, mastodon_id: String) -> Result<Option<(Uuid, String)>> {
         let result = sqlx::query!(
             r#"
             update mastodon_posts
@@ -137,7 +220,7 @@ impl StorageProvider for Postgres {
         Ok(result)
     }
 
-    async fn fetch_credentials(&self, user_id: Uuid) -> Result<Keys> {
+    pub async fn fetch_credentials(&self, user_id: Uuid) -> Result<Keys> {
         let result = sqlx::query_as!(
             KeysContainer,
             "select nostr_public_key, nostr_private_key from users where id = $1 limit 1",
@@ -149,7 +232,7 @@ impl StorageProvider for Postgres {
         Ok(Keys::from_sk_str(&result.nostr_private_key)?)
     }
 
-    async fn fetch_or_create_instance<T: Into<String> + Send>(
+    pub async fn fetch_or_create_instance<T: Into<String> + Send>(
         &self,
         instance_url: T,
     ) -> Result<Uuid> {
@@ -171,7 +254,7 @@ impl StorageProvider for Postgres {
         Ok(result.result)
     }
 
-    async fn fetch_or_create_user<T: Into<String> + Send>(
+    pub async fn fetch_or_create_user<T: Into<String> + Send>(
         &self,
         instance_id: Uuid,
         username: T,

@@ -10,7 +10,7 @@ use tokio::{
 
 use crate::{
     health::{Timeable, Timeoutable},
-    storage::MastodonServer,
+    postgres::MastodonServer,
 };
 
 #[async_trait::async_trait]

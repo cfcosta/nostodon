@@ -2,7 +2,7 @@ use clap::Parser;
 use eyre::Result;
 use nostr_sdk::prelude::*;
 
-use crate::{health::Timeable, storage::Profile};
+use crate::{health::Timeable, postgres::Profile};
 
 #[derive(Debug, Clone, Parser)]
 pub struct NostrConfig {

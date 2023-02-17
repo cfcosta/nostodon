@@ -9,13 +9,14 @@ use nostr_sdk::prelude::{EventId, FromBech32, ToBech32};
 mod health;
 mod mastodon;
 mod nostr;
-mod storage;
+mod postgres;
 mod util;
 
 use crate::{
     health::{Timeable, EVENTS_SKIPPED, POSTS_CREATED, PROFILES_UPDATED},
     mastodon::MastodonClient,
-    storage::*, util::extract_instance_url,
+    postgres::*,
+    util::extract_instance_url,
 };
 
 #[derive(Debug, Clone, Parser)]
@@ -27,7 +28,7 @@ pub struct Config {
     pub postgres: postgres::PostgresConfig,
 }
 
-async fn spawn(server: MastodonServer, config: Config, postgres: postgres::Postgres) -> Result<()> {
+async fn spawn(server: MastodonServer, config: Config, postgres: Postgres) -> Result<()> {
     let mastodon = mastodon::Mastodon::connect(server)?;
 
     let mut rx = mastodon.update_stream().await?;
@@ -156,7 +157,7 @@ async fn main() -> Result<()> {
 
     let config = Config::parse();
 
-    let postgres = postgres::Postgres::init(config.clone().postgres)
+    let postgres = Postgres::init(config.clone().postgres)
         .time_as("postgres.init")
         .await?;
     postgres
