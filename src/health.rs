@@ -7,14 +7,14 @@ use eyre::Result;
 use metrics::{describe_counter, increment_counter, register_counter, register_histogram};
 use tokio::time::timeout_at;
 
-pub const EVENTS_SKIPPED: &'static str = "nostodon_mastodon_events_skipped_count";
-pub const TASK_COUNT: &'static str = "nostodon_task_count";
-pub const TASK_TIMEOUT_COUNT: &'static str = "nostodon_task_timeout_count";
-pub const TASK_TIME_ELAPSED: &'static str = "nostodon_task_time_elapsed_ms";
-pub const TASK_TIME_ELAPSED_HISTOGRAM: &'static str = "nostodon_task_elapsed_histogram";
-pub const POSTS_CREATED: &'static str = "nostodon_posts_created_count";
-pub const POSTS_DELETED: &'static str = "nostodon_posts_deleted_count";
-pub const PROFILES_UPDATED: &'static str = "nostodon_profiles_updated_count";
+pub const EVENTS_SKIPPED: &str = "nostodon_mastodon_events_skipped_count";
+pub const TASK_COUNT: &str = "nostodon_task_count";
+pub const TASK_TIMEOUT_COUNT: &str = "nostodon_task_timeout_count";
+pub const TASK_TIME_ELAPSED: &str = "nostodon_task_time_elapsed_ms";
+pub const TASK_TIME_ELAPSED_HISTOGRAM: &str = "nostodon_task_elapsed_histogram";
+pub const POSTS_CREATED: &str = "nostodon_posts_created_count";
+pub const POSTS_DELETED: &str = "nostodon_posts_deleted_count";
+pub const PROFILES_UPDATED: &str = "nostodon_profiles_updated_count";
 
 pub struct Provider;
 

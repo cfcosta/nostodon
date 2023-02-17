@@ -13,5 +13,5 @@ pub fn base_url(mut url: Url) -> Result<Url> {
 }
 
 pub fn extract_instance_url<S: AsRef<str>>(input: S) -> Result<Url> {
-    base_url(Url::parse(&input.as_ref())?)
+    base_url(Url::parse(input.as_ref())?)
 }

@@ -77,10 +77,10 @@ impl MastodonClient for Mastodon {
             };
 
             loop {
-                match task().await {
+                match task().time_as("mastodon.task_lifecycle").await {
                     Ok(_) => continue,
                     Err(e) => {
-                        println!("Got an error: {}", e);
+                        println!("Got an error: {e}");
                         println!("Stream died, restarting...");
 
                         time::sleep(Duration::from_millis(100)).await;

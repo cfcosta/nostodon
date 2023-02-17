@@ -13,7 +13,7 @@ mod postgres;
 mod util;
 
 use crate::{
-    health::{Timeable, EVENTS_SKIPPED, POSTS_CREATED, PROFILES_UPDATED},
+    health::{EVENTS_SKIPPED, POSTS_CREATED, PROFILES_UPDATED},
     mastodon::MastodonClient,
     postgres::*,
     util::extract_instance_url,
@@ -39,7 +39,6 @@ async fn spawn(server: MastodonServer, config: Config, postgres: Postgres) -> Re
                 Event::Delete(id) => {
                     let result = postgres
                         .delete_post(id.clone())
-                        .time_as("postgres.delete_post")
                         .await;
 
                     match result {
@@ -47,16 +46,13 @@ async fn spawn(server: MastodonServer, config: Config, postgres: Postgres) -> Re
                             let event_id = EventId::from_bech32(event_id)?;
                             let creds = postgres
                                 .fetch_credentials(user_id)
-                                .time_as("postgres.fetch_credentials")
                                 .await?;
 
                             let nostr = nostr::Nostr::connect(creds, config.nostr.clone().relays)
-                                .time_as("nostr.connect")
                                 .await?;
 
                             nostr
                                 .delete_event(event_id)
-                                .time_as("nostr.delete_event")
                                 .await?;
 
                             increment_counter!(POSTS_DELETED);
@@ -87,7 +83,6 @@ async fn spawn(server: MastodonServer, config: Config, postgres: Postgres) -> Re
 
                     let instance_id = postgres
                         .fetch_or_create_instance(instance_url.as_str())
-                        .time_as("postgres.fetch_or_create_instance")
                         .await?;
 
                     let nip05 = format!(
@@ -98,21 +93,17 @@ async fn spawn(server: MastodonServer, config: Config, postgres: Postgres) -> Re
 
                     let user_id = postgres
                         .fetch_or_create_user(instance_id, nip05.clone())
-                        .time_as("postgres.fetch_or_create_user")
                         .await?;
 
                     let creds = postgres
                         .fetch_credentials(user_id)
-                        .time_as("postgres.fetch_credentials")
                         .await?;
 
                     let nostr = nostr::Nostr::connect(creds, config.nostr.clone().relays)
-                        .time_as("nostr.connect")
                         .await?;
 
                     let event_id = nostr
                         .publish(nostr::Note::new_text(html2md::parse_html(&status.content)))
-                        .time_as("nostr.publish")
                         .await?;
 
                     let profile = Profile::build(instance_id, user_id, &status)?;
@@ -120,7 +111,6 @@ async fn spawn(server: MastodonServer, config: Config, postgres: Postgres) -> Re
                     if postgres.update_profile(profile.clone()).await?.changed() {
                         nostr
                             .update_user_profile(profile)
-                            .time_as("nostr.update_user_proile")
                             .await?;
                         increment_counter!(PROFILES_UPDATED);
                     }
@@ -133,7 +123,7 @@ async fn spawn(server: MastodonServer, config: Config, postgres: Postgres) -> Re
                         status: MastodonPostStatus::Posted,
                     };
 
-                    postgres.add_post(post).time_as("postgres.add_post").await?;
+                    postgres.add_post(post).await?;
 
                     increment_counter!(POSTS_CREATED);
                     dbg!(event_id.to_bech32()?);
@@ -158,11 +148,9 @@ async fn main() -> Result<()> {
     let config = Config::parse();
 
     let postgres = Postgres::init(config.clone().postgres)
-        .time_as("postgres.init")
         .await?;
     postgres
         .health_check()
-        .time_as("postgres.health_check")
         .await?;
 
     let mut tasks = vec![];

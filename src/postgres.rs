@@ -134,7 +134,7 @@ impl Postgres {
         let pool = PgPoolOptions::new()
             .max_connections(16)
             .connect(&config.url)
-            .time_as("storage.connect")
+            .time_as("postgres.connect")
             .await?;
 
         Ok(Self { pool })
@@ -143,7 +143,7 @@ impl Postgres {
     pub async fn health_check(&self) -> Result<()> {
         sqlx::query("select 1")
             .execute(&self.pool)
-            .time_as("storage.health_check")
+            .time_as("postgres.health_check")
             .await?;
 
         Ok(())
@@ -151,7 +151,7 @@ impl Postgres {
 
     pub async fn fetch_servers(&self) -> Result<Vec<MastodonServer>> {
         Ok(sqlx::query_as!(MastodonServer, "select instance_url, client_key, client_secret, redirect_url, token from mastodon_servers")
-            .fetch_all(&self.pool).time_as("storage.fetch_servers").await?)
+            .fetch_all(&self.pool).time_as("postgres.fetch_servers").await?)
     }
 
     pub async fn update_profile(&self, profile: Profile) -> Result<ChangeResult> {
@@ -173,7 +173,7 @@ impl Postgres {
             profile.nip05
         )
         .fetch_one(&self.pool)
-        .time_as("storage.update_profile")
+        .time_as("postgres.update_profile")
         .await?
         .to_change_result()
     }
@@ -193,7 +193,7 @@ impl Postgres {
             post.status as MastodonPostStatus
         )
         .fetch_optional(&self.pool)
-        .time_as("storage.fetch_or_create_instance")
+        .time_as("postgres.fetch_or_create_instance")
         .await?;
 
         match result {
@@ -213,7 +213,7 @@ impl Postgres {
             mastodon_id
         )
         .fetch_optional(&self.pool)
-        .time_as("storage.fetch_or_create_instance")
+        .time_as("postgres.fetch_or_create_instance")
         .await?
         .map(|x| (x.user_id, x.nostr_id));
 
@@ -227,6 +227,7 @@ impl Postgres {
             user_id
         )
         .fetch_one(&self.pool)
+        .time_as("postgres.fetch_credentials")
         .await?;
 
         Ok(Keys::from_sk_str(&result.nostr_private_key)?)
@@ -248,7 +249,7 @@ impl Postgres {
             instance_url
         )
         .fetch_one(&self.pool)
-        .time_as("storage.fetch_or_create_instance")
+        .time_as("postgres.fetch_or_create_instance")
         .await?;
 
         Ok(result.result)
@@ -274,7 +275,7 @@ impl Postgres {
             username.into()
         )
         .fetch_one(&self.pool)
-        .time_as("storage.fetch_or_create_user")
+        .time_as("postgres.fetch_or_create_user")
         .await?;
 
         Ok(result.result)
