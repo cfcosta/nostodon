@@ -1,8 +1,9 @@
 use ::metrics::increment_counter;
 use clap::Parser;
 use eyre::Result;
+use health::POSTS_DELETED;
 use mastodon_async::{prelude::Event, Visibility};
-use nostr_sdk::prelude::{Url, ToBech32};
+use nostr_sdk::prelude::{ToBech32, Url, EventId, FromBech32};
 
 mod health;
 mod mastodon;
@@ -10,7 +11,7 @@ mod nostr;
 mod storage;
 
 use crate::{
-    health::{Timeable, EVENTS_PROCESSED, POSTS_CREATED, PROFILES_UPDATED},
+    health::{Timeable, EVENTS_SKIPPED, POSTS_CREATED, PROFILES_UPDATED},
     mastodon::MastodonClient,
     nostr::NostrClient,
     storage::*,
@@ -46,8 +47,13 @@ async fn main() -> Result<()> {
 
     let config = Config::parse();
 
-    let postgres = postgres::Postgres::init(config.clone().postgres).time_as("postgres.init").await?;
-    postgres.health_check().time_as("postgres.health_check").await?;
+    let postgres = postgres::Postgres::init(config.clone().postgres)
+        .time_as("postgres.init")
+        .await?;
+    postgres
+        .health_check()
+        .time_as("postgres.health_check")
+        .await?;
 
     let mastodon = mastodon::Mastodon::connect(config.clone().mastodon)?;
 
@@ -57,10 +63,31 @@ async fn main() -> Result<()> {
         match rx.try_recv() {
             Ok(ev) => match ev {
                 Event::Delete(id) => {
-                    println!("DELETE - {id}");
+                    let result = postgres
+                        .delete_post(id.clone())
+                        .time_as("postgres.delete_post")
+                        .await;
+
+                    match result {
+                        Ok(Some(( user_id, event_id ))) => {
+                            let event_id = EventId::from_bech32(event_id)?;
+                            let creds = postgres
+                                .fetch_credentials(user_id)
+                                .time_as("postgres.fetch_credentials")
+                            .await?;
+
+                            let nostr = nostr::Nostr::connect(creds, config.nostr.clone().relays)
+                                .time_as("nostr.connect")
+                            .await?;
+
+                            nostr.delete_event(event_id).time_as("nostr.delete_event").await?;
+
+                            increment_counter!(POSTS_DELETED);
+                        }
+                        _ => continue
+                    }
                 }
                 Event::Update(status) => {
-                    dbg!(&status);
                     if status.visibility != Visibility::Public {
                         let visibility_text = match status.visibility {
                             Visibility::Direct => "direct",
@@ -70,7 +97,7 @@ async fn main() -> Result<()> {
                         };
 
                         println!("Skipping update {:?} because it is not public", &status);
-                        increment_counter!(EVENTS_PROCESSED, "visibility" => visibility_text);
+                        increment_counter!(EVENTS_SKIPPED, "visibility" => visibility_text);
 
                         continue;
                     }
@@ -96,7 +123,10 @@ async fn main() -> Result<()> {
                         .time_as("postgres.fetch_or_create_user")
                         .await?;
 
-                    let creds = postgres.fetch_credentials(user_id).time_as("postgres.fetch_credentials").await?;
+                    let creds = postgres
+                        .fetch_credentials(user_id)
+                        .time_as("postgres.fetch_credentials")
+                        .await?;
 
                     let nostr = nostr::Nostr::connect(creds, config.nostr.clone().relays)
                         .time_as("nostr.connect")
@@ -119,7 +149,10 @@ async fn main() -> Result<()> {
                     };
 
                     if postgres.update_profile(profile.clone()).await?.changed() {
-                        nostr.update_user_profile(profile).time_as("nostr.update_user_proile").await?;
+                        nostr
+                            .update_user_profile(profile)
+                            .time_as("nostr.update_user_proile")
+                            .await?;
                         increment_counter!(PROFILES_UPDATED);
                     }
 

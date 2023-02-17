@@ -48,7 +48,7 @@ pub trait StorageProvider {
     async fn health_check(&self) -> Result<()>;
     async fn update_profile(&self, user: Profile) -> Result<ChangeResult>;
     async fn add_post(&self, post: MastodonPost) -> Result<ChangeResult>;
-    async fn delete_post(&self, mastodon_id: String) -> Result<ChangeResult>;
+    async fn delete_post(&self, mastodon_id: String) -> Result<Option<(Uuid, String)>>;
     async fn fetch_credentials(&self, user_id: Uuid) -> Result<Keys>;
     async fn fetch_or_create_instance<T: Into<String> + Send>(
         &self,

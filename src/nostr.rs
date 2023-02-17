@@ -19,6 +19,7 @@ where
 
     async fn publish(&self, note: Note) -> Result<Self::EventId>;
     async fn update_user_profile(&self, profile: Profile) -> Result<Self::EventId>;
+    async fn delete_event(&self, event: EventId) -> Result<Self::EventId>;
 }
 
 #[derive(Debug, Clone, Default)]
@@ -90,5 +91,9 @@ impl NostrClient for Nostr {
             ));
 
         Ok(self.client.update_profile(metadata).await?)
+    }
+
+    async fn delete_event(&self, event: EventId) -> Result<Self::EventId> {
+        Ok(self.client.delete_event(event, Some("deleted from remote source")).await?)
     }
 }

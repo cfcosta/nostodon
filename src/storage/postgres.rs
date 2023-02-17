@@ -110,12 +110,26 @@ impl StorageProvider for Postgres {
 
         match result {
             Some(id) => Ok(ChangeResult::Changed(id.result)),
-            None => Ok(ChangeResult::Unchanged)
+            None => Ok(ChangeResult::Unchanged),
         }
     }
 
-    async fn delete_post(&self, _mastodon_id: String) -> Result<ChangeResult> {
-        todo!()
+    async fn delete_post(&self, mastodon_id: String) -> Result<Option<(Uuid, String)>> {
+        let result = sqlx::query!(
+            r#"
+            update mastodon_posts
+            set status = 'deleted'
+            where mastodon_id = $1
+            returning user_id, nostr_id
+            "#,
+            mastodon_id
+        )
+        .fetch_optional(&self.pool)
+        .time_as("storage.fetch_or_create_instance")
+        .await?
+        .map(|x| (x.user_id, x.nostr_id));
+
+        Ok(result)
     }
 
     async fn fetch_credentials(&self, user_id: Uuid) -> Result<Keys> {
