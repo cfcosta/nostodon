@@ -2,21 +2,12 @@ use clap::Parser;
 use eyre::Result;
 use nostr_sdk::prelude::*;
 
-use crate::health::Timeable;
+use crate::{health::Timeable, storage::Profile};
 
 #[derive(Debug, Clone, Parser)]
 pub struct NostrConfig {
     #[clap(short = 'r', long = "relays", env = "NOSTODON_NOSTR_RELAYS")]
     pub relays: Vec<String>,
-}
-
-pub struct UserProfile {
-    pub name: String,
-    pub display_name: String,
-    pub about: String,
-    pub picture: String,
-    pub banner: String,
-    pub nip05: String,
 }
 
 #[async_trait::async_trait]
@@ -27,7 +18,7 @@ where
     type EventId;
 
     async fn publish(&self, note: Note) -> Result<Self::EventId>;
-    async fn update_user_profile(&self, profile: UserProfile) -> Result<Self::EventId>;
+    async fn update_user_profile(&self, profile: Profile) -> Result<Self::EventId>;
 }
 
 #[derive(Debug, Clone, Default)]
@@ -86,7 +77,18 @@ impl NostrClient for Nostr {
             .await?)
     }
 
-    async fn update_user_profile(&self, profile: UserProfile) -> Result<Self::EventId> {
-        todo!()
+    async fn update_user_profile(&self, profile: Profile) -> Result<Self::EventId> {
+        let metadata = Metadata::new()
+            .name(&profile.name)
+            .display_name(format!("[Unofficial Mirror] {}", profile.display_name))
+            .banner(Url::parse(&profile.banner)?)
+            .picture(Url::parse(&profile.picture)?)
+            .nip05(format!("{}@nostodon.org", &profile.nip05))
+            .about(format!(
+                "THIS IS AN UNNOFICIAL MIRROR. CHECK THE PROFILE FOR CORRECT INFO.\n\n{}",
+                profile.about
+            ));
+
+        Ok(self.client.update_profile(metadata).await?)
     }
 }

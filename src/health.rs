@@ -4,14 +4,16 @@ use std::{
 };
 
 use eyre::Result;
-use metrics::{describe_counter, register_counter, register_histogram, increment_counter};
+use metrics::{describe_counter, increment_counter, register_counter, register_histogram};
 use tokio::time::timeout_at;
 
+pub const EVENTS_PROCESSED: &'static str = "nostodon_mastodon_events_processed_count";
 pub const TASK_COUNT: &'static str = "nostodon_task_count";
 pub const TASK_TIMEOUT_COUNT: &'static str = "nostodon_task_timeout_count";
 pub const TASK_TIME_ELAPSED: &'static str = "nostodon_task_time_elapsed_ms";
 pub const TASK_TIME_ELAPSED_HISTOGRAM: &'static str = "nostodon_task_elapsed_histogram";
-pub const EVENTS_PROCESSED: &'static str = "nostodon_mastodon_events_processed_count";
+pub const POSTS_CREATED: &'static str = "nostodon_posts_created_count";
+pub const PROFILES_UPDATED: &'static str = "nostodon_profiles_updated_count";
 
 pub struct Provider;
 
@@ -20,6 +22,13 @@ impl Provider {
         describe_counter!(
             EVENTS_PROCESSED,
             "Counter of events that have been processed since start"
+        );
+
+        describe_counter!(TASK_COUNT, "Counter of tasks that have been processed");
+
+        describe_counter!(
+            TASK_TIMEOUT_COUNT,
+            "Counter of tasks that have been timed out"
         );
 
         describe_counter!(
@@ -31,6 +40,10 @@ impl Provider {
             TASK_TIME_ELAPSED_HISTOGRAM,
             "The historigram for the amount of time (and percentiles) of each task"
         );
+
+        describe_counter!(POSTS_CREATED, "Number of posts that have been created");
+
+        describe_counter!(PROFILES_UPDATED, "Number of posts that have been created");
     }
 }
 

@@ -4,7 +4,7 @@ use nostr_sdk::prelude::{FromSkStr, Keys, ToBech32};
 use sqlx::{postgres::PgPoolOptions, Pool};
 use uuid::Uuid;
 
-use crate::health::Timeable;
+use crate::{health::Timeable, storage::MastodonPostStatus};
 
 use super::{ChangeResult, MastodonPost, Profile, StorageProvider};
 
@@ -90,8 +90,28 @@ impl StorageProvider for Postgres {
         .to_change_result()
     }
 
-    async fn add_post(&self, _post: MastodonPost) -> Result<ChangeResult> {
-        todo!()
+    async fn add_post(&self, post: MastodonPost) -> Result<ChangeResult> {
+        let result = sqlx::query_as!(
+            IdContainer,
+            r#"insert into mastodon_posts
+                (instance_id, user_id, mastodon_id, nostr_id, status)
+            values ($1, $2, $3, $4, $5)
+            on conflict (mastodon_id) do nothing
+            returning id as result"#,
+            post.instance_id,
+            post.user_id,
+            post.mastodon_id,
+            post.nostr_id,
+            post.status as MastodonPostStatus
+        )
+        .fetch_optional(&self.pool)
+        .time_as("storage.fetch_or_create_instance")
+        .await?;
+
+        match result {
+            Some(id) => Ok(ChangeResult::Changed(id.result)),
+            None => Ok(ChangeResult::Unchanged)
+        }
     }
 
     async fn delete_post(&self, _mastodon_id: String) -> Result<ChangeResult> {

@@ -13,8 +13,12 @@ pub struct Profile {
     pub about: String,
     pub picture: String,
     pub nip05: String,
+    pub banner: String,
 }
 
+#[derive(sqlx::Type)]
+#[sqlx(type_name = "mastodon_post_status")]
+#[sqlx(rename_all = "lowercase")]
 pub enum MastodonPostStatus {
     Posted,
     Deleted,
@@ -31,6 +35,12 @@ pub struct MastodonPost {
 pub enum ChangeResult {
     Changed(Uuid),
     Unchanged,
+}
+
+impl ChangeResult {
+    pub fn changed(&self) -> bool {
+        matches!(self, ChangeResult::Changed(_))
+    }
 }
 
 #[async_trait::async_trait]
