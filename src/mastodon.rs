@@ -1,6 +1,5 @@
 use std::time::Duration;
 
-use clap::Parser;
 use eyre::{ErrReport, Result};
 use futures_util::TryStreamExt;
 use mastodon_async::prelude::{Event, StatusId};
@@ -9,41 +8,10 @@ use tokio::{
     task, time,
 };
 
-use crate::health::{Timeable, Timeoutable};
-
-#[derive(Debug, Clone, Parser)]
-pub struct MastodonConfig {
-    #[clap(short = 'u', long = "base-url", env = "NOSTODON_MASTODON_BASE_URL")]
-    base_url: String,
-    #[clap(short = 'i', long = "client-key", env = "NOSTODON_MASTODON_CLIENT_KEY")]
-    client_key: String,
-    #[clap(
-        short = 's',
-        long = "client-secret",
-        env = "NOSTODON_MASTODON_CLIENT_SECRET"
-    )]
-    client_secret: String,
-    #[clap(short = 't', long = "token", env = "NOSTODON_MASTODON_TOKEN")]
-    token: String,
-    #[clap(
-        short = 'e',
-        long = "redirect-url",
-        env = "NOSTODON_MASTODON_REDIRECT_URL"
-    )]
-    redirect: String,
-}
-
-impl MastodonConfig {
-    pub fn as_data(self) -> mastodon_async::Data {
-        mastodon_async::Data {
-            base: self.base_url.into(),
-            client_id: self.client_key.into(),
-            client_secret: self.client_secret.into(),
-            redirect: self.redirect.into(),
-            token: self.token.into(),
-        }
-    }
-}
+use crate::{
+    health::{Timeable, Timeoutable},
+    storage::MastodonServer,
+};
 
 #[async_trait::async_trait]
 pub trait MastodonClient {
@@ -53,17 +21,17 @@ pub trait MastodonClient {
 }
 
 pub struct Mastodon {
-    config: MastodonConfig,
+    server: MastodonServer,
     sender: Sender<Event>,
     _receiver: Receiver<Event>,
 }
 
 impl Mastodon {
-    pub fn connect(config: MastodonConfig) -> Result<Self> {
+    pub fn connect(server: MastodonServer) -> Result<Self> {
         let (sender, _receiver) = broadcast::channel(128);
 
         Ok(Self {
-            config,
+            server,
             sender,
             _receiver,
         })
@@ -76,12 +44,12 @@ impl MastodonClient for Mastodon {
 
     async fn update_stream(&self) -> Result<Receiver<Event>> {
         let sender = self.sender.clone();
-        let config = self.config.clone();
+        let server = self.server.clone();
 
         task::spawn(async move {
             let task = || async {
                 let sender = sender.clone();
-                let client = mastodon_async::Mastodon::from(config.clone().as_data());
+                let client = mastodon_async::Mastodon::from(server.clone().as_data());
 
                 let mut stream = Box::pin(
                     client

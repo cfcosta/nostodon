@@ -1,9 +1,10 @@
 use ::metrics::increment_counter;
 use clap::Parser;
 use eyre::Result;
+use futures_util::future::try_join_all;
 use health::POSTS_DELETED;
 use mastodon_async::{prelude::Event, Visibility};
-use nostr_sdk::prelude::{ToBech32, Url, EventId, FromBech32};
+use nostr_sdk::prelude::{EventId, FromBech32, ToBech32, Url};
 
 mod health;
 mod mastodon;
@@ -23,9 +24,6 @@ pub struct Config {
     pub nostr: nostr::NostrConfig,
 
     #[clap(flatten)]
-    pub mastodon: mastodon::MastodonConfig,
-
-    #[clap(flatten)]
     pub postgres: postgres::PostgresConfig,
 }
 
@@ -40,22 +38,8 @@ fn base_url(mut url: Url) -> Result<Url> {
     Ok(url)
 }
 
-#[tokio::main]
-async fn main() -> Result<()> {
-    health::Provider::setup();
-    // TODO: init migrations
-
-    let config = Config::parse();
-
-    let postgres = postgres::Postgres::init(config.clone().postgres)
-        .time_as("postgres.init")
-        .await?;
-    postgres
-        .health_check()
-        .time_as("postgres.health_check")
-        .await?;
-
-    let mastodon = mastodon::Mastodon::connect(config.clone().mastodon)?;
+async fn spawn(server: MastodonServer, config: Config, postgres: postgres::Postgres) -> Result<()> {
+    let mastodon = mastodon::Mastodon::connect(server)?;
 
     let mut rx = mastodon.update_stream().await?;
 
@@ -69,22 +53,25 @@ async fn main() -> Result<()> {
                         .await;
 
                     match result {
-                        Ok(Some(( user_id, event_id ))) => {
+                        Ok(Some((user_id, event_id))) => {
                             let event_id = EventId::from_bech32(event_id)?;
                             let creds = postgres
                                 .fetch_credentials(user_id)
                                 .time_as("postgres.fetch_credentials")
-                            .await?;
+                                .await?;
 
                             let nostr = nostr::Nostr::connect(creds, config.nostr.clone().relays)
                                 .time_as("nostr.connect")
-                            .await?;
+                                .await?;
 
-                            nostr.delete_event(event_id).time_as("nostr.delete_event").await?;
+                            nostr
+                                .delete_event(event_id)
+                                .time_as("nostr.delete_event")
+                                .await?;
 
                             increment_counter!(POSTS_DELETED);
                         }
-                        _ => continue
+                        _ => continue,
                     }
                 }
                 Event::Update(status) => {
@@ -178,5 +165,31 @@ async fn main() -> Result<()> {
     }
 
     #[allow(unreachable_code)]
+    Ok(())
+}
+
+#[tokio::main]
+async fn main() -> Result<()> {
+    health::Provider::setup();
+    // TODO: init migrations
+
+    let config = Config::parse();
+
+    let postgres = postgres::Postgres::init(config.clone().postgres)
+        .time_as("postgres.init")
+        .await?;
+    postgres
+        .health_check()
+        .time_as("postgres.health_check")
+        .await?;
+
+    let mut tasks = vec![];
+
+    for server in postgres.fetch_servers().await?.into_iter() {
+        tasks.push(spawn(server, config.clone(), postgres.clone()));
+    }
+
+    try_join_all(tasks).await?;
+
     Ok(())
 }

@@ -94,6 +94,9 @@ impl NostrClient for Nostr {
     }
 
     async fn delete_event(&self, event: EventId) -> Result<Self::EventId> {
-        Ok(self.client.delete_event(event, Some("deleted from remote source")).await?)
+        Ok(self
+            .client
+            .delete_event(event, Some("deleted from remote source"))
+            .await?)
     }
 }

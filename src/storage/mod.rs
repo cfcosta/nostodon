@@ -24,6 +24,27 @@ pub enum MastodonPostStatus {
     Deleted,
 }
 
+#[derive(Debug, Clone)]
+pub struct MastodonServer {
+    pub instance_url: String,
+    pub client_key: String,
+    pub client_secret: String,
+    pub redirect_url: String,
+    pub token: String,
+}
+
+impl MastodonServer {
+    pub fn as_data(self) -> mastodon_async::Data {
+        mastodon_async::Data {
+            base: self.instance_url.into(),
+            client_id: self.client_key.into(),
+            client_secret: self.client_secret.into(),
+            redirect: self.redirect_url.into(),
+            token: self.token.into(),
+        }
+    }
+}
+
 pub struct MastodonPost {
     pub instance_id: Uuid,
     pub user_id: Uuid,
@@ -46,6 +67,7 @@ impl ChangeResult {
 #[async_trait::async_trait]
 pub trait StorageProvider {
     async fn health_check(&self) -> Result<()>;
+    async fn fetch_servers(&self) -> Result<Vec<MastodonServer>>;
     async fn update_profile(&self, user: Profile) -> Result<ChangeResult>;
     async fn add_post(&self, post: MastodonPost) -> Result<ChangeResult>;
     async fn delete_post(&self, mastodon_id: String) -> Result<Option<(Uuid, String)>>;

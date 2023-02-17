@@ -27,13 +27,14 @@
         devShell = pkgs.mkShell {
           nativeBuildInputs = with pkgs; [
             cargo-watch
-            pkg-config
             openssl
+            pgcli
+            pkg-config
+            postgresql
             (rust-bin.stable.latest.default.override {
               extensions = [ "rust-src" "clippy" "rustfmt" "rust-analyzer" ];
             })
             sqlx-cli
-            pgcli
           ];
 
           NOSTODON_DATABASE_URL = database.full_url;

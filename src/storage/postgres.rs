@@ -6,7 +6,7 @@ use uuid::Uuid;
 
 use crate::{health::Timeable, storage::MastodonPostStatus};
 
-use super::{ChangeResult, MastodonPost, Profile, StorageProvider};
+use super::{ChangeResult, MastodonPost, MastodonServer, Profile, StorageProvider};
 
 #[derive(Debug, Clone, Parser)]
 pub struct PostgresConfig {
@@ -64,6 +64,11 @@ impl StorageProvider for Postgres {
             .await?;
 
         Ok(())
+    }
+
+    async fn fetch_servers(&self) -> Result<Vec<MastodonServer>> {
+        Ok(sqlx::query_as!(MastodonServer, "select instance_url, client_key, client_secret, redirect_url, token from mastodon_servers")
+            .fetch_all(&self.pool).time_as("storage.fetch_servers").await?)
     }
 
     async fn update_profile(&self, profile: Profile) -> Result<ChangeResult> {
