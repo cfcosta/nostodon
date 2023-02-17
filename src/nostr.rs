@@ -10,18 +10,6 @@ pub struct NostrConfig {
     pub relays: Vec<String>,
 }
 
-#[async_trait::async_trait]
-pub trait NostrClient
-where
-    Self: Sized,
-{
-    type EventId;
-
-    async fn publish(&self, note: Note) -> Result<Self::EventId>;
-    async fn update_user_profile(&self, profile: Profile) -> Result<Self::EventId>;
-    async fn delete_event(&self, event: EventId) -> Result<Self::EventId>;
-}
-
 #[derive(Debug, Clone, Default)]
 pub struct Note {
     pub text: String,
@@ -64,13 +52,8 @@ impl Nostr {
 
         Ok(this)
     }
-}
 
-#[async_trait::async_trait]
-impl NostrClient for Nostr {
-    type EventId = EventId;
-
-    async fn publish(&self, note: Note) -> Result<Self::EventId> {
+    pub async fn publish(&self, note: Note) -> Result<EventId> {
         Ok(self
             .client
             .publish_text_note(&note.text, &note.tags)
@@ -78,7 +61,7 @@ impl NostrClient for Nostr {
             .await?)
     }
 
-    async fn update_user_profile(&self, profile: Profile) -> Result<Self::EventId> {
+    pub async fn update_user_profile(&self, profile: Profile) -> Result<EventId> {
         let metadata = Metadata::new()
             .name(&profile.name)
             .display_name(format!("[Unofficial Mirror] {}", profile.display_name))
@@ -93,7 +76,7 @@ impl NostrClient for Nostr {
         Ok(self.client.update_profile(metadata).await?)
     }
 
-    async fn delete_event(&self, event: EventId) -> Result<Self::EventId> {
+    pub async fn delete_event(&self, event: EventId) -> Result<EventId> {
         Ok(self
             .client
             .delete_event(event, Some("deleted from remote source"))

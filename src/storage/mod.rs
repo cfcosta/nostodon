@@ -1,6 +1,9 @@
-use eyre::Result;
+use eyre::{ Result, eyre };
+use mastodon_async::prelude::Status;
 use nostr_sdk::prelude::Keys;
 use uuid::Uuid;
+
+use crate::util::extract_instance_url;
 
 pub mod postgres;
 
@@ -14,6 +17,34 @@ pub struct Profile {
     pub picture: String,
     pub nip05: String,
     pub banner: String,
+}
+
+impl Profile {
+    pub fn build(
+        instance_id: Uuid,
+        user_id: Uuid,
+        status: &Status
+    ) -> Result<Self> {
+        let url = status.url.as_ref().ok_or_else(|| eyre!("failed to extract instance url"))?;
+        let instance_url = extract_instance_url(url)?;
+
+        let nip05 = format!(
+            "{}.{}",
+            status.account.username.clone(),
+            instance_url.host().unwrap()
+        );
+
+        Ok(Self {
+            instance_id,
+            name: status.account.username.clone(),
+            display_name: status.account.display_name.clone(),
+            about: status.account.note.clone(),
+            user_id,
+            nip05,
+            picture: status.account.avatar.clone(),
+            banner: status.account.header.clone(),
+        })
+    }
 }
 
 #[derive(sqlx::Type)]

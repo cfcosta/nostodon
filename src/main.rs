@@ -4,18 +4,18 @@ use eyre::Result;
 use futures_util::future::try_join_all;
 use health::POSTS_DELETED;
 use mastodon_async::{prelude::Event, Visibility};
-use nostr_sdk::prelude::{EventId, FromBech32, ToBech32, Url};
+use nostr_sdk::prelude::{EventId, FromBech32, ToBech32};
 
 mod health;
 mod mastodon;
 mod nostr;
 mod storage;
+mod util;
 
 use crate::{
     health::{Timeable, EVENTS_SKIPPED, POSTS_CREATED, PROFILES_UPDATED},
     mastodon::MastodonClient,
-    nostr::NostrClient,
-    storage::*,
+    storage::*, util::extract_instance_url,
 };
 
 #[derive(Debug, Clone, Parser)]
@@ -25,17 +25,6 @@ pub struct Config {
 
     #[clap(flatten)]
     pub postgres: postgres::PostgresConfig,
-}
-
-fn base_url(mut url: Url) -> Result<Url> {
-    {
-        let mut path = url.path_segments_mut().unwrap();
-        path.clear();
-    }
-
-    url.set_query(None);
-
-    Ok(url)
 }
 
 async fn spawn(server: MastodonServer, config: Config, postgres: postgres::Postgres) -> Result<()> {
@@ -89,10 +78,11 @@ async fn spawn(server: MastodonServer, config: Config, postgres: postgres::Postg
                         continue;
                     }
 
-                    let instance_url = match status.url {
-                        Some(v) => base_url(Url::parse(&v)?)?,
-                        None => continue,
-                    };
+                    if status.url.is_none() {
+                        continue;
+                    }
+
+                    let instance_url = extract_instance_url(status.url.as_ref().unwrap())?;
 
                     let instance_id = postgres
                         .fetch_or_create_instance(instance_url.as_str())
@@ -124,16 +114,7 @@ async fn spawn(server: MastodonServer, config: Config, postgres: postgres::Postg
                         .time_as("nostr.publish")
                         .await?;
 
-                    let profile = Profile {
-                        instance_id,
-                        name: status.account.username.clone(),
-                        display_name: status.account.display_name.clone(),
-                        about: status.account.note.clone(),
-                        user_id,
-                        nip05,
-                        picture: status.account.avatar.clone(),
-                        banner: status.account.header.clone(),
-                    };
+                    let profile = Profile::build(instance_id, user_id, &status)?;
 
                     if postgres.update_profile(profile.clone()).await?.changed() {
                         nostr
