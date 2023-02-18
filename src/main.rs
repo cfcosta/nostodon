@@ -1,6 +1,6 @@
 use ::metrics::increment_counter;
 use clap::Parser;
-use eyre::Result;
+use eyre::{ Result, eyre };
 use futures_util::future::try_join_all;
 use health::POSTS_DELETED;
 use mastodon_async::{prelude::Event, Visibility};
@@ -157,6 +157,10 @@ async fn main() -> Result<()> {
 
     for server in postgres.fetch_servers().await?.into_iter() {
         tasks.push(spawn(server, config.clone(), postgres.clone()));
+    }
+
+    if tasks.is_empty() {
+        return Err(eyre!("There are no configured servers. Please add some on mastodon_servers."));
     }
 
     try_join_all(tasks).await?;
