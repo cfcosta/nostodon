@@ -83,7 +83,7 @@ impl MastodonClient for Mastodon {
                         println!("Got an error: {e}");
                         println!("Stream died, restarting...");
 
-                        time::sleep(Duration::from_millis(100)).await;
+                        time::sleep(Duration::from_millis(3000)).await;
                         continue;
                     }
                 }
