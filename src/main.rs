@@ -1,9 +1,12 @@
 use ::metrics::increment_counter;
 use clap::Parser;
-use eyre::{eyre, Result, ErrReport};
+use eyre::{eyre, ErrReport, Result};
 use futures_util::future::try_join_all;
 use health::POSTS_DELETED;
-use mastodon_async::{prelude::Event, Visibility};
+use mastodon_async::{
+    prelude::{Event, Status},
+    Visibility,
+};
 use nostr_sdk::prelude::{EventId, FromBech32, ToBech32};
 use postgres::job_queue::ScheduledPost;
 use tokio::task;
@@ -75,6 +78,64 @@ async fn spawn_poster(postgres: Postgres, config: Config) -> Result<()> {
     Ok(())
 }
 
+async fn process_status(postgres: Postgres, status: Status, relays: Vec<String>) -> Result<()> {
+    if status.visibility != Visibility::Public {
+        let visibility_text = match status.visibility {
+            Visibility::Direct => "direct",
+            Visibility::Private => "private",
+            Visibility::Unlisted => "unlisted",
+            Visibility::Public => "public",
+        };
+
+        println!("Skipping update {:?} because it is not public", &status);
+        increment_counter!(EVENTS_SKIPPED, "visibility" => visibility_text);
+
+        return Ok(());
+    }
+
+    if status.url.is_none() {
+        panic!("No Url")
+    }
+
+    let instance_url = extract_instance_url(status.url.as_ref().unwrap())?;
+
+    let instance_id = postgres
+        .fetch_or_create_instance(instance_url.as_str())
+        .await?;
+
+    let nip05 = format!(
+        "{}.{}",
+        status.account.username.clone(),
+        instance_url.host().unwrap()
+    );
+
+    let user_id = postgres
+        .fetch_or_create_user(instance_id, nip05.clone())
+        .await?;
+
+    let creds = postgres.fetch_credentials(user_id).await?;
+
+    let profile = Profile::build(instance_id, user_id, &status)?;
+
+    if postgres.update_profile(profile.clone()).await?.changed() {
+        let nostr = nostr::Nostr::connect(creds, relays).await?;
+        nostr.update_user_profile(profile).await?;
+        increment_counter!(PROFILES_UPDATED);
+    }
+
+    postgres
+        .listener()
+        .push(ScheduledPost {
+            content: status.content,
+            instance_id,
+            user_id,
+            mastodon_id: status.id.to_string(),
+        })
+        .await?;
+
+    Ok(())
+}
+
 async fn spawn(server: MastodonServer, config: Config, postgres: Postgres) -> Result<()> {
     let mastodon = mastodon::Mastodon::connect(server)?;
 
@@ -101,60 +162,13 @@ async fn spawn(server: MastodonServer, config: Config, postgres: Postgres) -> Re
                         _ => continue,
                     }
                 }
-                Event::Update(status) => {
-                    if status.visibility != Visibility::Public {
-                        let visibility_text = match status.visibility {
-                            Visibility::Direct => "direct",
-                            Visibility::Private => "private",
-                            Visibility::Unlisted => "unlisted",
-                            Visibility::Public => "public",
-                        };
-
-                        println!("Skipping update {:?} because it is not public", &status);
-                        increment_counter!(EVENTS_SKIPPED, "visibility" => visibility_text);
-
-                        continue;
-                    }
-
-                    if status.url.is_none() {
-                        continue;
-                    }
-
-                    let instance_url = extract_instance_url(status.url.as_ref().unwrap())?;
-
-                    let instance_id = postgres
-                        .fetch_or_create_instance(instance_url.as_str())
-                        .await?;
-
-                    let nip05 = format!(
-                        "{}.{}",
-                        status.account.username.clone(),
-                        instance_url.host().unwrap()
-                    );
-
-                    let user_id = postgres
-                        .fetch_or_create_user(instance_id, nip05.clone())
-                        .await?;
-
-                    let creds = postgres.fetch_credentials(user_id).await?;
-
-                    let profile = Profile::build(instance_id, user_id, &status)?;
-
-                    if postgres.update_profile(profile.clone()).await?.changed() {
-                        let nostr = nostr::Nostr::connect(creds, config.nostr.clone().relays).await?;
-                        nostr.update_user_profile(profile).await?;
-                        increment_counter!(PROFILES_UPDATED);
-                    }
-
-                    postgres.listener().push(ScheduledPost {
-                        content: status.content,
-                        instance_id,
-                        user_id,
-                        mastodon_id: status.id.to_string()
-                    }).await?;
-
-                    break;
-                }
+                Event::Update(status) => match process_status(postgres.clone(), status, config.nostr.relays.clone()).await {
+                    Ok(_) => continue,
+                    Err(e) => {
+                        println!("Error while processing update: {e}");
+                        continue
+                    },
+                },
                 _ => continue,
             },
             Err(_) => continue,
