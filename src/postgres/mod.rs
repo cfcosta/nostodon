@@ -5,7 +5,11 @@ use nostr_sdk::prelude::{FromSkStr, Keys, ToBech32};
 use sqlx::{postgres::PgPoolOptions, Pool};
 use uuid::Uuid;
 
+pub mod job_queue;
+
 use crate::{health::Timeable, util::extract_instance_url};
+
+use self::job_queue::JobQueue;
 
 #[derive(Debug, Clone, Parser)]
 pub struct PostgresConfig {
@@ -279,5 +283,9 @@ impl Postgres {
         .await?;
 
         Ok(result.result)
+    }
+
+    pub fn listener(&self) -> job_queue::JobQueue {
+        JobQueue::new(self.pool.clone())
     }
 }

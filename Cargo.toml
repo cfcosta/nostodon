@@ -12,7 +12,8 @@ html2md = "0.2.14"
 mastodon-async = "1.1.0"
 metrics = "0.20.1"
 nostr-sdk = "0.17.0"
-sqlx = { version = "0.6.2", features = ["postgres", "runtime-tokio-native-tls", "uuid", "migrate", "macros", "offline"] }
+sqlx = { version = "0.6.2", features = ["postgres", "runtime-tokio-native-tls", "uuid", "migrate", "macros", "offline", "time"] }
+time = "0.3.19"
 tokio = { version = "1.25.0", features = ["full"] }
 url = "2.3.0"
 uuid = { version = "1.3.0", features = ["v4"] }

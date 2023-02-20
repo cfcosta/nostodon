@@ -53,7 +53,7 @@ impl MastodonClient for Mastodon {
 
                 let mut stream = Box::pin(
                     client
-                        .stream_public()
+                        .stream_local()
                         .time_as("mastodon.client_stream_public_init")
                         .await?
                         .into_stream(),

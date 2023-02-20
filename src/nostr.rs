@@ -54,6 +54,7 @@ impl Nostr {
     }
 
     pub async fn publish(&self, note: Note) -> Result<EventId> {
+        todo!();
         Ok(self
             .client
             .publish_text_note(&note.text, &note.tags)
@@ -73,7 +74,11 @@ impl Nostr {
                 profile.about
             ));
 
-        Ok(self.client.update_profile(metadata).time_as("nostr.update_profile").await?)
+        Ok(self
+            .client
+            .update_profile(metadata)
+            .time_as("nostr.update_profile")
+            .await?)
     }
 
     pub async fn delete_event(&self, event: EventId) -> Result<EventId> {
