@@ -285,6 +285,11 @@ impl Postgres {
         Ok(result.result)
     }
 
+    pub async fn is_user_blacklisted(&self, user_id: Uuid) -> Result<bool> {
+        let result = sqlx::query!("select id from user_blacklists where user_id = $1", user_id).fetch_optional(&self.pool).await?;
+        Ok(result.is_some())
+    }
+
     pub fn listener(&self) -> job_queue::JobQueue {
         JobQueue::new(self.pool.clone())
     }

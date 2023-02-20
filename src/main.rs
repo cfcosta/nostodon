@@ -79,14 +79,14 @@ async fn spawn_poster(postgres: Postgres, config: Config) -> Result<()> {
 }
 
 async fn process_status(postgres: Postgres, status: Status, relays: Vec<String>) -> Result<()> {
-    if status.visibility != Visibility::Public {
-        let visibility_text = match status.visibility {
-            Visibility::Direct => "direct",
-            Visibility::Private => "private",
-            Visibility::Unlisted => "unlisted",
-            Visibility::Public => "public",
-        };
+    let visibility_text = match status.visibility {
+        Visibility::Direct => "direct",
+        Visibility::Private => "private",
+        Visibility::Unlisted => "unlisted",
+        Visibility::Public => "public",
+    };
 
+    if status.visibility != Visibility::Public {
         println!("Skipping update {:?} because it is not public", &status);
         increment_counter!(EVENTS_SKIPPED, "visibility" => visibility_text);
 
@@ -112,6 +112,13 @@ async fn process_status(postgres: Postgres, status: Status, relays: Vec<String>)
     let user_id = postgres
         .fetch_or_create_user(instance_id, nip05.clone())
         .await?;
+
+    if postgres.is_user_blacklisted(user_id).await? {
+        println!("Skipping update {:?} because user is blacklisted", &status);
+        increment_counter!(EVENTS_SKIPPED, "visibility" => visibility_text);
+
+        return Ok(());
+    }
 
     let creds = postgres.fetch_credentials(user_id).await?;
 
