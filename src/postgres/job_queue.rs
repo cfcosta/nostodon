@@ -5,8 +5,6 @@ use uuid::Uuid;
 
 use crate::health::Timeable;
 
-use super::ChangeResult;
-
 #[derive(Debug, Clone, sqlx::Type)]
 #[sqlx(type_name = "scheduled_post_status")]
 #[sqlx(rename_all = "lowercase")]
@@ -98,22 +96,22 @@ impl JobQueue {
         Ok(())
     }
 
-    pub async fn finish(&self, mastodon_id: String) -> Result<ChangeResult> {
-        sqlx::query_as!(
-            super::ResultContainer,
+    pub async fn finish(&self, mastodon_id: String) -> Result<()> {
+        sqlx::query!(
             r#"
-            update scheduled_posts set status = 'finished' where status = 'running' and mastodon_id = $1
-            returning id::text as result
+            update scheduled_posts set status = 'finished'
+            where status = 'running' and mastodon_id = $1
             "#,
             mastodon_id
         )
-        .fetch_one(&self.pool)
-            .time_as("postgres.job_queue.finish")
-        .await?
-        .to_change_result()
+        .execute(&self.pool)
+        .time_as("postgres.job_queue.finish")
+        .await?;
+
+        Ok(())
     }
 
-    pub async fn error(&self, mastodon_id: String, reason: String) -> Result<ChangeResult> {
+    pub async fn error(&self, mastodon_id: String, reason: String) -> Result<()> {
         sqlx::query_as!(
             super::ResultContainer,
             r#"
@@ -121,15 +119,15 @@ impl JobQueue {
                 scheduled_posts
             set status = 'errored', fail_reason = $1
             where status = 'running' and mastodon_id = $2
-            returning id::text as result
             "#,
             reason,
             mastodon_id
         )
-        .fetch_one(&self.pool)
+        .execute(&self.pool)
         .time_as("postgres.job_queue.finish")
-        .await?
-        .to_change_result()
+        .await?;
+
+        Ok(())
     }
 
     pub async fn update_stream(&self) -> Result<Receiver<ScheduledPost>> {
