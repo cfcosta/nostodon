@@ -8,7 +8,7 @@ use tokio::{
 };
 
 use crate::{
-    health::{Timeable, Timeoutable},
+    health::Timeable,
     postgres::MastodonServer,
 };
 

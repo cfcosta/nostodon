@@ -71,7 +71,7 @@ impl JobQueue {
             post.content
         )
         .execute(&self.pool)
-            .time_as("postgres.job_queue.push")
+        .time_as("postgres.job_queue.push")
         .await?;
 
         Ok(())
@@ -92,8 +92,19 @@ impl JobQueue {
         .to_change_result()
     }
 
-    pub async fn error(&self, mastodon_id: String, reason: String) -> Result<()> {
-        todo!()
+    pub async fn error(&self, mastodon_id: String) -> Result<ChangeResult> {
+        sqlx::query_as!(
+            super::ResultContainer,
+            r#"
+            update scheduled_posts set status = 'errored' where status = 'running' and mastodon_id = $1
+            returning id::text as result
+            "#,
+            mastodon_id
+        )
+        .fetch_one(&self.pool)
+            .time_as("postgres.job_queue.finish")
+        .await?
+        .to_change_result()
     }
 
     pub async fn update_stream(&self) -> Result<Receiver<ScheduledPost>> {

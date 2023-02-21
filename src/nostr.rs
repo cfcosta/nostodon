@@ -1,4 +1,3 @@
-use clap::Parser;
 use eyre::Result;
 use nostr_sdk::prelude::*;
 
@@ -6,12 +5,6 @@ use crate::{
     health::Timeable,
     postgres::{Postgres, Profile},
 };
-
-#[derive(Debug, Clone, Parser)]
-pub struct NostrConfig {
-    #[clap(short = 'r', long = "relays", env = "NOSTODON_NOSTR_RELAYS")]
-    pub relays: Vec<String>,
-}
 
 #[derive(Debug, Clone, Default)]
 pub struct Note {
