@@ -88,7 +88,7 @@ async fn process_status(postgres: Postgres, status: Status, relays: Vec<String>)
 
     if status.visibility != Visibility::Public {
         println!("Skipping update {:?} because it is not public", &status);
-        increment_counter!(EVENTS_SKIPPED, "visibility" => visibility_text);
+        increment_counter!(EVENTS_SKIPPED, "visibility" => visibility_text, "reason" => "visibility");
 
         return Ok(());
     }
@@ -99,9 +99,14 @@ async fn process_status(postgres: Postgres, status: Status, relays: Vec<String>)
 
     let instance_url = extract_instance_url(status.url.as_ref().unwrap())?;
 
-    let instance_id = postgres
+    let instance = postgres
         .fetch_or_create_instance(instance_url.as_str())
         .await?;
+
+    if instance.blacklisted {
+        println!("Skipping update {:?} because instance is blacklisted", &status);
+        increment_counter!(EVENTS_SKIPPED, "visibility" => visibility_text, "reason" => "instance_blacklist");
+    }
 
     let nip05 = format!(
         "{}.{}",
@@ -110,19 +115,19 @@ async fn process_status(postgres: Postgres, status: Status, relays: Vec<String>)
     );
 
     let user_id = postgres
-        .fetch_or_create_user(instance_id, nip05.clone())
+        .fetch_or_create_user(instance.id, nip05.clone())
         .await?;
 
     if postgres.is_user_blacklisted(user_id).await? {
         println!("Skipping update {:?} because user is blacklisted", &status);
-        increment_counter!(EVENTS_SKIPPED, "visibility" => visibility_text);
+        increment_counter!(EVENTS_SKIPPED, "visibility" => visibility_text, "reason" => "user_blacklist");
 
         return Ok(());
     }
 
     let creds = postgres.fetch_credentials(user_id).await?;
 
-    let profile = Profile::build(instance_id, user_id, &status)?;
+    let profile = Profile::build(instance.id, user_id, &status)?;
 
     if postgres.update_profile(profile.clone()).await?.changed() {
         let nostr = nostr::Nostr::connect(creds, relays).await?;
@@ -134,7 +139,7 @@ async fn process_status(postgres: Postgres, status: Status, relays: Vec<String>)
         .listener()
         .push(ScheduledPost {
             content: status.content,
-            instance_id,
+            instance_id: instance.id,
             user_id,
             mastodon_id: status.id.to_string(),
         })
@@ -169,13 +174,17 @@ async fn spawn(server: MastodonServer, config: Config, postgres: Postgres) -> Re
                         _ => continue,
                     }
                 }
-                Event::Update(status) => match process_status(postgres.clone(), status, config.nostr.relays.clone()).await {
-                    Ok(_) => continue,
-                    Err(e) => {
-                        println!("Error while processing update: {e}");
-                        continue
-                    },
-                },
+                Event::Update(status) => {
+                    match process_status(postgres.clone(), status, config.nostr.relays.clone())
+                        .await
+                    {
+                        Ok(_) => continue,
+                        Err(e) => {
+                            println!("Error while processing update: {e}");
+                            continue;
+                        }
+                    }
+                }
                 _ => continue,
             },
             Err(_) => continue,

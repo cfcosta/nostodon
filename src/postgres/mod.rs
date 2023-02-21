@@ -42,6 +42,13 @@ impl ResultContainer {
 }
 
 #[derive(Debug, Clone)]
+pub struct MastodonInstance {
+    pub id: Uuid,
+    pub url: String,
+    pub blacklisted: bool,
+}
+
+#[derive(Debug, Clone)]
 pub struct Profile {
     pub instance_id: Uuid,
     pub user_id: Uuid,
@@ -240,23 +247,26 @@ impl Postgres {
     pub async fn fetch_or_create_instance<T: Into<String> + Send>(
         &self,
         instance_url: T,
-    ) -> Result<Uuid> {
+    ) -> Result<MastodonInstance> {
         let instance_url: String = instance_url.into();
 
-        let result = sqlx::query_as!(
-            IdContainer,
+        let result = sqlx::query!(
             "insert into mastodon_instances (url, blacklisted)
             values ($1, false)
             on conflict (url) do update set
                 url = $1
-            returning id as result",
+            returning id, url, blacklisted",
             instance_url
         )
         .fetch_one(&self.pool)
         .time_as("postgres.fetch_or_create_instance")
         .await?;
 
-        Ok(result.result)
+        Ok(MastodonInstance {
+            id: result.id,
+            url: result.url,
+            blacklisted: result.blacklisted,
+        })
     }
 
     pub async fn fetch_or_create_user<T: Into<String> + Send>(
@@ -286,7 +296,9 @@ impl Postgres {
     }
 
     pub async fn is_user_blacklisted(&self, user_id: Uuid) -> Result<bool> {
-        let result = sqlx::query!("select id from user_blacklists where user_id = $1", user_id).fetch_optional(&self.pool).await?;
+        let result = sqlx::query!("select id from user_blacklists where user_id = $1", user_id)
+            .fetch_optional(&self.pool)
+            .await?;
         Ok(result.is_some())
     }
 
