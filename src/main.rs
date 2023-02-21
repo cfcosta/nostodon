@@ -25,12 +25,12 @@ pub struct Config {
 async fn main() -> Result<()> {
     tracing_subscriber::fmt::init();
     health::Provider::setup();
-    // TODO: init migrations
 
     let config = Config::parse();
 
     let postgres = Postgres::init(config.clone().postgres).await?;
     postgres.health_check().await?;
+    postgres.migrate().await?;
 
     if !config.skip_posting {
         task::spawn(poster::spawn(postgres.clone()));

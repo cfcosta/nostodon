@@ -177,6 +177,11 @@ impl Postgres {
         Ok(())
     }
 
+    pub async fn migrate(&self) -> Result<()> {
+        sqlx::migrate!().run(&self.pool).await?;
+        Ok(())
+    }
+
     pub async fn fetch_servers(&self) -> Result<Vec<MastodonServer>> {
         Ok(sqlx::query_as!(MastodonServer, "select instance_url, client_key, client_secret, redirect_url, token from mastodon_servers")
             .fetch_all(&self.pool).time_as("postgres.fetch_servers").await?)
