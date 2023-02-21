@@ -13,6 +13,7 @@ create table scheduled_posts (
   profile_nip05 text not null,
   profile_banner text not null,
   status scheduled_post_status not null default 'new',
+  fail_reason text,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );

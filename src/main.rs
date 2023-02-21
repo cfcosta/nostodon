@@ -1,6 +1,6 @@
 use ::metrics::increment_counter;
 use clap::Parser;
-use eyre::{eyre, ErrReport, Result};
+use eyre::{eyre, Result};
 use futures_util::future::try_join_all;
 use health::{Timeable, POSTS_DELETED};
 use mastodon_async::{
@@ -15,11 +15,12 @@ use tracing::{debug, error};
 mod health;
 mod mastodon;
 mod nostr;
+mod poster;
 mod postgres;
 mod util;
 
 use crate::{
-    health::{EVENTS_SKIPPED, POSTS_CREATED, PROFILES_UPDATED},
+    health::EVENTS_SKIPPED,
     mastodon::MastodonClient,
     postgres::*,
     util::extract_instance_url,
@@ -32,68 +33,6 @@ pub struct Config {
 
     #[clap(long = "skip-posting", short = 'p', env = "NOSTODON_SKIP_POSTING")]
     pub skip_posting: bool,
-}
-
-async fn spawn_poster(postgres: Postgres) -> Result<()> {
-    let task = |postgres: Postgres| async move {
-        let mut stream = postgres.listener().update_stream().await?;
-
-        let item = stream.recv().await?;
-        task::spawn(async move {
-            let creds = postgres.fetch_credentials(item.user_id).await?;
-            let nostr = nostr::Nostr::connect(&postgres, creds).await?;
-
-            let profile: Profile = item.clone().into();
-            if postgres.update_profile(&profile).await?.changed() {
-                nostr.update_user_profile(profile).await?;
-                increment_counter!(PROFILES_UPDATED);
-            }
-
-            let event_id = match nostr
-                .publish(nostr::Note::new_text(html2md::parse_html(&item.content)))
-                .await
-            {
-                Ok(id) => {
-                    println!("EVENT_ID: {id}");
-                    id
-                }
-                e => {
-                    postgres.listener().error(item.mastodon_id.clone()).await?;
-                    e?
-                }
-            };
-
-            let post = MastodonPost {
-                instance_id: item.instance_id,
-                user_id: item.user_id,
-                mastodon_id: item.mastodon_id.clone(),
-                nostr_id: event_id.to_string(),
-                status: MastodonPostStatus::Posted,
-            };
-
-            postgres.add_post(post).await?;
-            postgres.listener().finish(item.mastodon_id).await?;
-
-            increment_counter!(POSTS_CREATED);
-
-            Ok::<_, ErrReport>(())
-        });
-
-        Ok::<_, ErrReport>(())
-    };
-
-    loop {
-        match task(postgres.clone()).await {
-            Ok(_) => continue,
-            Err(e) => {
-                error!("Got an error when fetching mastodon updates: {:?}", e);
-                continue;
-            }
-        }
-    }
-
-    #[allow(unreachable_code)]
-    Ok(())
 }
 
 async fn process_status(postgres: Postgres, status: Status) -> Result<()> {
@@ -232,7 +171,7 @@ async fn main() -> Result<()> {
     }
 
     if !config.skip_posting {
-        task::spawn(spawn_poster(postgres.clone()));
+        task::spawn(poster::spawn(postgres.clone()));
     }
 
     if tasks.is_empty() {

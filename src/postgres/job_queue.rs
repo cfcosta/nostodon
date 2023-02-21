@@ -28,7 +28,7 @@ pub struct ScheduledPost {
     pub profile_about: String,
     pub profile_picture: String,
     pub profile_nip05: String,
-    pub profile_banner: String
+    pub profile_banner: String,
 }
 
 pub struct JobQueue {
@@ -112,17 +112,21 @@ impl JobQueue {
         .to_change_result()
     }
 
-    pub async fn error(&self, mastodon_id: String) -> Result<ChangeResult> {
+    pub async fn error(&self, mastodon_id: String, reason: String) -> Result<ChangeResult> {
         sqlx::query_as!(
             super::ResultContainer,
             r#"
-            update scheduled_posts set status = 'errored' where status = 'running' and mastodon_id = $1
+            update
+                scheduled_posts
+            set status = 'errored', fail_reason = $1
+            where status = 'running' and mastodon_id = $2
             returning id::text as result
             "#,
+            reason,
             mastodon_id
         )
         .fetch_one(&self.pool)
-            .time_as("postgres.job_queue.finish")
+        .time_as("postgres.job_queue.finish")
         .await?
         .to_change_result()
     }
