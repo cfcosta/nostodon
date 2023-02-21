@@ -60,9 +60,6 @@ where
 {
     async fn time_as<S: Into<String> + Send>(self, task_name: S) -> A {
         let task_name_str = task_name.into();
-
-        println!("Running task `{}`...", &task_name_str);
-
         let start = Instant::now();
         let result = self.await;
         let diff = Instant::now() - start;
@@ -74,7 +71,7 @@ where
             .record(diff.as_millis() as f64);
 
         println!(
-            "Finished {} [OK] (took {}ms)",
+            " [OK] {} (took {}ms)",
             &task_name_str,
             diff.as_millis()
         );
