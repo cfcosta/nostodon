@@ -1,17 +1,12 @@
 use eyre::{eyre, Result};
 use futures_util::future::try_join_all;
-use mastodon_async::{
-    prelude::{Event, Status},
-    Visibility,
-};
+use mastodon_async::{prelude::Status, Visibility};
 use metrics::increment_counter;
-use nostr_sdk::prelude::{EventId, FromBech32};
 use tracing::{debug, error};
 
 use crate::{
     health::*,
     mastodon::*,
-    nostr::Nostr,
     postgres::{job_queue::*, *},
     util::*,
 };
@@ -41,37 +36,15 @@ async fn spawn_listener(server: MastodonServer, postgres: Postgres) -> Result<()
 
     loop {
         match rx.try_recv() {
-            Ok(ev) => match ev {
-                Event::Delete(id) => {
-                    let result = postgres.delete_post(id.clone()).await;
-
-                    match result {
-                        Ok(Some((user_id, event_id))) => {
-                            let event_id = EventId::from_bech32(event_id)?;
-                            let creds = postgres.fetch_credentials(user_id).await?;
-
-                            let nostr = Nostr::connect(&postgres, creds).await?;
-
-                            nostr.delete_event(event_id).await?;
-
-                            increment_counter!(POSTS_DELETED);
-                        }
-                        _ => continue,
-                    }
+            Ok(status) => match process_status(postgres.clone(), status)
+                .time_as("mastodon.process_status")
+                .await
+            {
+                Ok(_) => continue,
+                Err(e) => {
+                    error!("Error while processing update: {e}");
+                    continue;
                 }
-                Event::Update(status) => {
-                    match process_status(postgres.clone(), status)
-                        .time_as("mastodon.process_status")
-                        .await
-                    {
-                        Ok(_) => continue,
-                        Err(e) => {
-                            error!("Error while processing update: {e}");
-                            continue;
-                        }
-                    }
-                }
-                _ => continue,
             },
             Err(_) => continue,
         }

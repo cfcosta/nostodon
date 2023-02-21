@@ -240,24 +240,6 @@ impl Postgres {
         }
     }
 
-    pub async fn delete_post(&self, mastodon_id: String) -> Result<Option<(Uuid, String)>> {
-        let result = sqlx::query!(
-            r#"
-            update mastodon_posts
-            set status = 'deleted'
-            where mastodon_id = $1
-            returning user_id, nostr_id
-            "#,
-            mastodon_id
-        )
-        .fetch_optional(&self.pool)
-        .time_as("postgres.fetch_or_create_instance")
-        .await?
-        .map(|x| (x.user_id, x.nostr_id));
-
-        Ok(result)
-    }
-
     pub async fn fetch_credentials(&self, user_id: Uuid) -> Result<Keys> {
         let result = sqlx::query!(
             "select nostr_public_key, nostr_private_key from users where id = $1 limit 1",

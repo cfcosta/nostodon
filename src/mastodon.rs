@@ -1,7 +1,7 @@
 use std::time::Duration;
 
 use eyre::{ErrReport, Result};
-use mastodon_async::prelude::{Event, StatusId};
+use mastodon_async::prelude::{Status, StatusId};
 use tokio::{
     sync::broadcast::{self, Receiver, Sender},
     task, time,
@@ -12,15 +12,15 @@ use crate::{health::Timeable, postgres::MastodonServer};
 
 #[async_trait::async_trait]
 pub trait MastodonClient {
-    type EventId;
+    type StatusId;
 
-    async fn update_stream(&self) -> Result<Receiver<Event>>;
+    async fn update_stream(&self) -> Result<Receiver<Status>>;
 }
 
 pub struct Mastodon {
     server: MastodonServer,
-    sender: Sender<Event>,
-    _receiver: Receiver<Event>,
+    sender: Sender<Status>,
+    _receiver: Receiver<Status>,
 }
 
 impl Mastodon {
@@ -37,9 +37,9 @@ impl Mastodon {
 
 #[async_trait::async_trait]
 impl MastodonClient for Mastodon {
-    type EventId = StatusId;
+    type StatusId = StatusId;
 
-    async fn update_stream(&self) -> Result<Receiver<Event>> {
+    async fn update_stream(&self) -> Result<Receiver<Status>> {
         let sender = self.sender.clone();
         let server = self.server.clone();
 
@@ -55,7 +55,7 @@ impl MastodonClient for Mastodon {
                 for event in events {
                     sender
                         .clone()
-                        .send(Event::Update(event))
+                        .send(event)
                         .expect("error: mastodon sender has no subscribers");
                 }
 

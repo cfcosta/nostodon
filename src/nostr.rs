@@ -76,12 +76,4 @@ impl Nostr {
             .time_as("nostr.update_profile")
             .await?)
     }
-
-    pub async fn delete_event(&self, event: EventId) -> Result<EventId> {
-        Ok(self
-            .client
-            .delete_event(event, Some("deleted from remote source"))
-            .time_as("nostr.delete_event")
-            .await?)
-    }
 }

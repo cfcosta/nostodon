@@ -14,7 +14,6 @@ pub const TASK_TIMEOUT_COUNT: &str = "nostodon_task_timeout_count";
 pub const TASK_TIME_ELAPSED: &str = "nostodon_task_time_elapsed_ms";
 pub const TASK_TIME_ELAPSED_HISTOGRAM: &str = "nostodon_task_elapsed_histogram";
 pub const POSTS_CREATED: &str = "nostodon_posts_created_count";
-pub const POSTS_DELETED: &str = "nostodon_posts_deleted_count";
 pub const PROFILES_UPDATED: &str = "nostodon_profiles_updated_count";
 
 pub struct Provider;
