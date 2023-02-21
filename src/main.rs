@@ -10,7 +10,7 @@ use mastodon_async::{
 use nostr_sdk::prelude::{EventId, FromBech32};
 use postgres::job_queue::ScheduledPost;
 use tokio::task;
-use tracing::{error, debug};
+use tracing::{debug, error};
 
 mod health;
 mod mastodon;
@@ -29,6 +29,9 @@ use crate::{
 pub struct Config {
     #[clap(flatten)]
     pub postgres: postgres::PostgresConfig,
+
+    #[clap(long = "skip-posting", short = 'p', env = "NOSTODON_SKIP_POSTING")]
+    pub skip_posting: bool,
 }
 
 async fn spawn_poster(postgres: Postgres) -> Result<()> {
@@ -221,7 +224,9 @@ async fn main() -> Result<()> {
         tasks.push(spawn(server, postgres.clone()));
     }
 
-    task::spawn(spawn_poster(postgres.clone()));
+    if !config.skip_posting {
+        task::spawn(spawn_poster(postgres.clone()));
+    }
 
     if tasks.is_empty() {
         return Err(eyre!(

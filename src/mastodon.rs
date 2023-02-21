@@ -8,10 +8,7 @@ use tokio::{
 };
 use tracing::debug;
 
-use crate::{
-    health::Timeable,
-    postgres::MastodonServer,
-};
+use crate::{health::Timeable, postgres::MastodonServer};
 
 #[async_trait::async_trait]
 pub trait MastodonClient {
