@@ -6,6 +6,7 @@ use tokio::{
     sync::broadcast::{self, Receiver, Sender},
     task, time,
 };
+use tracing::debug;
 
 use crate::{
     health::Timeable,
@@ -68,7 +69,7 @@ impl MastodonClient for Mastodon {
                 match task().await {
                     Ok(_) => {}
                     Err(e) => {
-                        println!("Got an error: {e}");
+                        debug!("Got an error: {e}");
                     }
                 }
 

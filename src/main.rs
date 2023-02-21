@@ -10,6 +10,7 @@ use mastodon_async::{
 use nostr_sdk::prelude::{EventId, FromBech32};
 use postgres::job_queue::ScheduledPost;
 use tokio::task;
+use tracing::{error, debug};
 
 mod health;
 mod mastodon;
@@ -73,9 +74,7 @@ async fn spawn_poster(postgres: Postgres) -> Result<()> {
         match task(postgres.clone()).await {
             Ok(_) => continue,
             Err(e) => {
-                println!("Got an error: {:?}", e);
-                println!("Stream died, restarting...");
-
+                error!("Got an error when fetching mastodon updates: {:?}", e);
                 continue;
             }
         }
@@ -94,7 +93,7 @@ async fn process_status(postgres: Postgres, status: Status) -> Result<()> {
     };
 
     if status.visibility != Visibility::Public {
-        println!("Skipping update {:?} because it is not public", &status);
+        debug!("Skipping update {:?} because it is not public", &status);
         increment_counter!(EVENTS_SKIPPED, "visibility" => visibility_text, "reason" => "visibility");
 
         return Ok(());
@@ -111,7 +110,7 @@ async fn process_status(postgres: Postgres, status: Status) -> Result<()> {
         .await?;
 
     if instance.blacklisted {
-        println!(
+        debug!(
             "Skipping update {:?} because instance is blacklisted",
             &status
         );
@@ -129,7 +128,7 @@ async fn process_status(postgres: Postgres, status: Status) -> Result<()> {
         .await?;
 
     if postgres.is_user_blacklisted(user_id).await? {
-        println!("Skipping update {:?} because user is blacklisted", &status);
+        debug!("Skipping update {:?} because user is blacklisted", &status);
         increment_counter!(EVENTS_SKIPPED, "visibility" => visibility_text, "reason" => "user_blacklist");
 
         return Ok(());
@@ -190,7 +189,7 @@ async fn spawn(server: MastodonServer, postgres: Postgres) -> Result<()> {
                     {
                         Ok(_) => continue,
                         Err(e) => {
-                            println!("Error while processing update: {e}");
+                            error!("Error while processing update: {e}");
                             continue;
                         }
                     }
@@ -207,6 +206,7 @@ async fn spawn(server: MastodonServer, postgres: Postgres) -> Result<()> {
 
 #[tokio::main]
 async fn main() -> Result<()> {
+    tracing_subscriber::fmt::init();
     health::Provider::setup();
     // TODO: init migrations
 

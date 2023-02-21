@@ -6,6 +6,7 @@ use std::{
 use eyre::Result;
 use metrics::{describe_counter, increment_counter, register_counter, register_histogram};
 use tokio::time::timeout_at;
+use tracing::trace;
 
 pub const EVENTS_SKIPPED: &str = "nostodon_mastodon_events_skipped_count";
 pub const TASK_COUNT: &str = "nostodon_task_count";
@@ -70,10 +71,10 @@ where
         register_histogram!(TASK_TIME_ELAPSED_HISTOGRAM, "task" => task_name_str.clone())
             .record(diff.as_millis() as f64);
 
-        println!(
-            " [OK] {} (took {}ms)",
-            &task_name_str,
-            diff.as_millis()
+        trace!(
+            name = &task_name_str,
+            time_taken_ms = diff.as_millis(),
+            "Task finished",
         );
         result
     }
