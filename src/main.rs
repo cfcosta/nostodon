@@ -44,6 +44,7 @@ async fn spawn_poster(postgres: Postgres, config: Config) -> Result<()> {
         let event_id = nostr
             .publish(nostr::Note::new_text(html2md::parse_html(&item.content)))
             .await?;
+        dbg!(event_id);
 
         let post = MastodonPost {
             instance_id: item.instance_id,
@@ -94,7 +95,7 @@ async fn process_status(postgres: Postgres, status: Status, relays: Vec<String>)
     }
 
     if status.url.is_none() {
-        panic!("No Url")
+        todo!("No Url");
     }
 
     let instance_url = extract_instance_url(status.url.as_ref().unwrap())?;
@@ -104,7 +105,10 @@ async fn process_status(postgres: Postgres, status: Status, relays: Vec<String>)
         .await?;
 
     if instance.blacklisted {
-        println!("Skipping update {:?} because instance is blacklisted", &status);
+        println!(
+            "Skipping update {:?} because instance is blacklisted",
+            &status
+        );
         increment_counter!(EVENTS_SKIPPED, "visibility" => visibility_text, "reason" => "instance_blacklist");
     }
 

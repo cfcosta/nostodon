@@ -1,7 +1,6 @@
 use std::time::Duration;
 
 use eyre::{ErrReport, Result};
-use futures_util::TryStreamExt;
 use mastodon_async::prelude::{Event, StatusId};
 use tokio::{
     sync::broadcast::{self, Receiver, Sender},
@@ -50,43 +49,30 @@ impl MastodonClient for Mastodon {
             let task = || async {
                 let sender = sender.clone();
                 let client = mastodon_async::Mastodon::from(server.clone().as_data());
+                let events = client
+                    .get_public_timeline(false)
+                    .time_as("mastodon.get_public_timeline")
+                    .await?;
 
-                let mut stream = Box::pin(
-                    client
-                        .stream_local()
-                        .time_as("mastodon.client_stream_public_init")
-                        .await?
-                        .into_stream(),
-                );
-
-                while let Ok(Ok(Some(event))) = stream
-                    .try_next()
-                    .time_as("mastodon.client_stream_get_next")
-                    .with_timeout(Duration::from_secs(20))
-                    .await
-                {
+                for event in events {
                     sender
                         .clone()
-                        .send(event)
+                        .send(Event::Update(event))
                         .expect("error: mastodon sender has no subscribers");
                 }
-
-                drop(stream);
 
                 Ok::<_, ErrReport>(())
             };
 
             loop {
-                match task().time_as("mastodon.task_lifecycle").await {
-                    Ok(_) => continue,
+                match task().await {
+                    Ok(_) => {}
                     Err(e) => {
                         println!("Got an error: {e}");
-                        println!("Stream died, restarting...");
-
-                        time::sleep(Duration::from_millis(3000)).await;
-                        continue;
                     }
                 }
+
+                time::sleep(Duration::from_secs(2)).await;
             }
         });
 

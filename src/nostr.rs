@@ -54,7 +54,6 @@ impl Nostr {
     }
 
     pub async fn publish(&self, note: Note) -> Result<EventId> {
-        todo!();
         Ok(self
             .client
             .publish_text_note(&note.text, &note.tags)
