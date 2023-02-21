@@ -1,0 +1,375 @@
+{
+  "db": "PostgreSQL",
+  "05681c4ac13a9b68de5b4de0f711b549ddda288269eb1850927937ac8f68108a": {
+    "describe": {
+      "columns": [
+        {
+          "name": "nostr_id",
+          "ordinal": 0,
+          "type_info": "Text"
+        }
+      ],
+      "nullable": [
+        false
+      ],
+      "parameters": {
+        "Left": [
+          "Text"
+        ]
+      }
+    },
+    "query": "select nostr_id from mastodon_posts where mastodon_id = $1"
+  },
+  "14d819109556cbba10d76e2a52fd8f493e3e49077262a805de0e06c68f6727f0": {
+    "describe": {
+      "columns": [
+        {
+          "name": "url",
+          "ordinal": 0,
+          "type_info": "Text"
+        }
+      ],
+      "nullable": [
+        false
+      ],
+      "parameters": {
+        "Left": []
+      }
+    },
+    "query": "select url from nostr_relays"
+  },
+  "15f65a1b84ce265433e58f894564f7178729c463c35c51de9710fe4e6429068a": {
+    "describe": {
+      "columns": [
+        {
+          "name": "result",
+          "ordinal": 0,
+          "type_info": "Uuid"
+        }
+      ],
+      "nullable": [
+        false
+      ],
+      "parameters": {
+        "Left": [
+          "Uuid",
+          "Uuid",
+          "Text",
+          "Text",
+          {
+            "Custom": {
+              "kind": {
+                "Enum": [
+                  "posted",
+                  "deleted"
+                ]
+              },
+              "name": "mastodon_post_status"
+            }
+          }
+        ]
+      }
+    },
+    "query": "insert into mastodon_posts\n                (instance_id, user_id, mastodon_id, nostr_id, status)\n            values ($1, $2, $3, $4, $5)\n            on conflict (mastodon_id) do nothing\n            returning id as result"
+  },
+  "20d04b12bebc0a937a2b282a3326d12599b1707d792b42fc8e44756ceb353407": {
+    "describe": {
+      "columns": [
+        {
+          "name": "id",
+          "ordinal": 0,
+          "type_info": "Uuid"
+        },
+        {
+          "name": "url",
+          "ordinal": 1,
+          "type_info": "Text"
+        },
+        {
+          "name": "blacklisted",
+          "ordinal": 2,
+          "type_info": "Bool"
+        }
+      ],
+      "nullable": [
+        false,
+        false,
+        false
+      ],
+      "parameters": {
+        "Left": [
+          "Text"
+        ]
+      }
+    },
+    "query": "insert into mastodon_instances (url, blacklisted)\n            values ($1, false)\n            on conflict (url) do update set\n                url = $1\n            returning id, url, blacklisted"
+  },
+  "642deaebb1488c341841f86bbb7c970bc9c0fac8d8e09dded13d8ed31f040bf5": {
+    "describe": {
+      "columns": [
+        {
+          "name": "instance_url",
+          "ordinal": 0,
+          "type_info": "Text"
+        },
+        {
+          "name": "client_key",
+          "ordinal": 1,
+          "type_info": "Text"
+        },
+        {
+          "name": "client_secret",
+          "ordinal": 2,
+          "type_info": "Text"
+        },
+        {
+          "name": "redirect_url",
+          "ordinal": 3,
+          "type_info": "Text"
+        },
+        {
+          "name": "token",
+          "ordinal": 4,
+          "type_info": "Text"
+        }
+      ],
+      "nullable": [
+        false,
+        false,
+        false,
+        false,
+        false
+      ],
+      "parameters": {
+        "Left": []
+      }
+    },
+    "query": "select instance_url, client_key, client_secret, redirect_url, token from mastodon_servers"
+  },
+  "79697f07a2f656f26ec21f7ac4c9177276b4736b141512016f5ee94ddf85b0ff": {
+    "describe": {
+      "columns": [
+        {
+          "name": "id",
+          "ordinal": 0,
+          "type_info": "Uuid"
+        },
+        {
+          "name": "nostr_private_key",
+          "ordinal": 1,
+          "type_info": "Text"
+        }
+      ],
+      "nullable": [
+        false,
+        false
+      ],
+      "parameters": {
+        "Left": [
+          "Uuid",
+          "Text",
+          "Text",
+          "Text"
+        ]
+      }
+    },
+    "query": "insert into users\n                (instance_id, nostr_public_key, nostr_private_key, mastodon_user)\n            values ($1, $2, $3, $4)\n            on conflict (mastodon_user) do update set instance_id = $1\n            returning id, nostr_private_key"
+  },
+  "8d1b17769b780924220504118cf2f87f15e1a93d23e71f380fe39959d73b94f2": {
+    "describe": {
+      "columns": [
+        {
+          "name": "nostr_public_key",
+          "ordinal": 0,
+          "type_info": "Text"
+        },
+        {
+          "name": "nostr_private_key",
+          "ordinal": 1,
+          "type_info": "Text"
+        }
+      ],
+      "nullable": [
+        false,
+        false
+      ],
+      "parameters": {
+        "Left": [
+          "Uuid"
+        ]
+      }
+    },
+    "query": "select nostr_public_key, nostr_private_key from users where id = $1 limit 1"
+  },
+  "95f338cc666e972511874fed4ee8de3fe14954ac22d017b66ed98c79e6774e4a": {
+    "describe": {
+      "columns": [
+        {
+          "name": "result",
+          "ordinal": 0,
+          "type_info": "Text"
+        }
+      ],
+      "nullable": [
+        null
+      ],
+      "parameters": {
+        "Left": [
+          "Uuid",
+          "Uuid",
+          "Text",
+          "Text",
+          "Text",
+          "Text",
+          "Text",
+          "Text"
+        ]
+      }
+    },
+    "query": "insert into profiles\n                (instance_id, user_id, name, display_name, about, picture, nip05, banner)\n            values\n                ($1, $2, $3, $4, $5, $6, $7, $8)\n            on conflict (user_id) do update set\n                name = $3, display_name = $4, about = $5, picture = $6, nip05 = $7, banner = $8\n            returning case when xmax = 0 then id::text else 'unchanged' end as result"
+  },
+  "a359ccbabe3ae552640bde94b92b7d9d21ae6262374b68bb2ccf3fa5e00312dd": {
+    "describe": {
+      "columns": [],
+      "nullable": [],
+      "parameters": {
+        "Left": [
+          "Text",
+          "Text"
+        ]
+      }
+    },
+    "query": "\n            update\n                scheduled_posts\n            set status = 'errored', fail_reason = $1\n            where status = 'running' and mastodon_id = $2\n            "
+  },
+  "aa7d5704be65c383cdb12ad4766b62e04ee9525a8c2287157630251af2a3af9f": {
+    "describe": {
+      "columns": [
+        {
+          "name": "id",
+          "ordinal": 0,
+          "type_info": "Uuid"
+        }
+      ],
+      "nullable": [
+        false
+      ],
+      "parameters": {
+        "Left": [
+          "Uuid"
+        ]
+      }
+    },
+    "query": "select id from user_blacklists where user_id = $1"
+  },
+  "c1732b3a616ba467aca843ab79894514229e5168906e4d2554aed515b2d8e3dc": {
+    "describe": {
+      "columns": [
+        {
+          "name": "user_id",
+          "ordinal": 0,
+          "type_info": "Uuid"
+        },
+        {
+          "name": "instance_id",
+          "ordinal": 1,
+          "type_info": "Uuid"
+        },
+        {
+          "name": "mastodon_id",
+          "ordinal": 2,
+          "type_info": "Text"
+        },
+        {
+          "name": "in_reply_to",
+          "ordinal": 3,
+          "type_info": "Text"
+        },
+        {
+          "name": "content",
+          "ordinal": 4,
+          "type_info": "Text"
+        },
+        {
+          "name": "profile_name",
+          "ordinal": 5,
+          "type_info": "Text"
+        },
+        {
+          "name": "profile_display_name",
+          "ordinal": 6,
+          "type_info": "Text"
+        },
+        {
+          "name": "profile_about",
+          "ordinal": 7,
+          "type_info": "Text"
+        },
+        {
+          "name": "profile_picture",
+          "ordinal": 8,
+          "type_info": "Text"
+        },
+        {
+          "name": "profile_nip05",
+          "ordinal": 9,
+          "type_info": "Text"
+        },
+        {
+          "name": "profile_banner",
+          "ordinal": 10,
+          "type_info": "Text"
+        }
+      ],
+      "nullable": [
+        false,
+        false,
+        false,
+        true,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false
+      ],
+      "parameters": {
+        "Left": []
+      }
+    },
+    "query": "\n             update scheduled_posts set status = 'running'\n             where id = (\n                select id from scheduled_posts where status = 'new'\n                order by id\n                for update skip locked\n                limit 1\n             ) returning \n                user_id, instance_id, mastodon_id, in_reply_to, content,\n                profile_name, profile_display_name, profile_about,\n                profile_picture, profile_nip05, profile_banner\n            "
+  },
+  "d83a834ba20fe0755c79eb8a8b8812f198b5b5bea3153906b5d185954abc0774": {
+    "describe": {
+      "columns": [],
+      "nullable": [],
+      "parameters": {
+        "Left": [
+          "Text"
+        ]
+      }
+    },
+    "query": "\n            update scheduled_posts set status = 'finished'\n            where status = 'running' and mastodon_id = $1\n            "
+  },
+  "faaa9e51ad6ddb8e6927bf356e71bb60b79da77da465640337eec5517ef09f43": {
+    "describe": {
+      "columns": [],
+      "nullable": [],
+      "parameters": {
+        "Left": [
+          "Uuid",
+          "Uuid",
+          "Text",
+          "Text",
+          "Text",
+          "Text",
+          "Text",
+          "Text",
+          "Text",
+          "Text"
+        ]
+      }
+    },
+    "query": "\n            insert into scheduled_posts\n                (user_id, instance_id, mastodon_id, content, status,\n                 profile_name, profile_display_name, profile_about,\n                profile_picture, profile_nip05, profile_banner)\n            values\n                ($1, $2, $3, $4, 'new', $5, $6, $7, $8, $9, $10)\n            on conflict do nothing"
+  }
+}
