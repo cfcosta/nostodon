@@ -20,10 +20,7 @@ mod postgres;
 mod util;
 
 use crate::{
-    health::EVENTS_SKIPPED,
-    mastodon::MastodonClient,
-    postgres::*,
-    util::extract_instance_url,
+    health::EVENTS_SKIPPED, mastodon::MastodonClient, postgres::*, util::extract_instance_url,
 };
 
 #[derive(Debug, Clone, Parser)]

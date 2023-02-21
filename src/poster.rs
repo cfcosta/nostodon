@@ -50,7 +50,7 @@ pub async fn spawn(postgres: Postgres) -> Result<()> {
                 postgres
                     .listener()
                     .error(item.mastodon_id, e.to_string())
-                .await?;
+                    .await?;
             }
         }
 
@@ -60,7 +60,7 @@ pub async fn spawn(postgres: Postgres) -> Result<()> {
     loop {
         let item = match stream.recv().await {
             Ok(item) => item,
-            Err(_) => continue
+            Err(_) => continue,
         };
 
         match task(postgres.clone(), item).await {

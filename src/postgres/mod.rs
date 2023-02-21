@@ -120,13 +120,15 @@ pub struct MastodonServer {
 }
 
 impl MastodonServer {
-    pub fn as_data(self) -> mastodon_async::Data {
+    pub fn as_data(&self) -> mastodon_async::Data {
+        let this = self.clone();
+
         mastodon_async::Data {
-            base: self.instance_url.into(),
-            client_id: self.client_key.into(),
-            client_secret: self.client_secret.into(),
-            redirect: self.redirect_url.into(),
-            token: self.token.into(),
+            base: this.instance_url.into(),
+            client_id: this.client_key.into(),
+            client_secret: this.client_secret.into(),
+            redirect: this.redirect_url.into(),
+            token: this.token.into(),
         }
     }
 }

@@ -142,7 +142,12 @@ impl JobQueue {
             listener.listen("scheduled_posts_status_channel").await?;
 
             loop {
-                while let Ok(_) = listener.recv().time_as("postgres.job_queue.recv").await {
+                while listener
+                    .recv()
+                    .time_as("postgres.job_queue.recv")
+                    .await
+                    .is_ok()
+                {
                     if let Some(job) = poll_job(&pool).await? {
                         sender.send(job)?;
                     }
