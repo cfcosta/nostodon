@@ -6,7 +6,7 @@ use tokio::{
     sync::broadcast::{self, Receiver, Sender},
     task, time,
 };
-use tracing::debug;
+use tracing::error;
 
 use crate::{health::Timeable, postgres::MastodonServer};
 
@@ -24,7 +24,8 @@ pub struct Mastodon {
 }
 
 impl Mastodon {
-    pub fn connect(server: MastodonServer) -> Result<Self> {
+    pub fn connect(server: &MastodonServer) -> Result<Self> {
+        let server = server.clone();
         let (sender, _receiver) = broadcast::channel(128);
 
         Ok(Self {
@@ -66,7 +67,7 @@ impl MastodonClient for Mastodon {
                 match task().await {
                     Ok(_) => {}
                     Err(e) => {
-                        debug!("Got an error: {e}");
+                        error!(error = %e, server = server.instance_url, "Got an error while getting updates");
                     }
                 }
 

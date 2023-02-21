@@ -30,7 +30,7 @@ pub async fn spawn(postgres: Postgres) -> Result<()> {
 }
 
 async fn spawn_listener(server: MastodonServer, postgres: Postgres) -> Result<()> {
-    let mastodon = Mastodon::connect(server)?;
+    let mastodon = Mastodon::connect(&server)?;
 
     let mut rx = mastodon.update_stream().await?;
 
@@ -42,7 +42,7 @@ async fn spawn_listener(server: MastodonServer, postgres: Postgres) -> Result<()
             {
                 Ok(_) => continue,
                 Err(e) => {
-                    error!("Error while processing update: {e}");
+                    error!(instance = %server.instance_url, error = %e, "Error while processing update");
                     continue;
                 }
             },
@@ -62,9 +62,11 @@ async fn process_status(postgres: Postgres, status: Status) -> Result<()> {
         Visibility::Public => "public",
     };
 
+    let instance_url = extract_instance_url(status.url.as_ref().unwrap())?;
+
     if status.visibility != Visibility::Public {
-        debug!("Skipping update {:?} because it is not public", &status);
-        increment_counter!(EVENTS_SKIPPED, "visibility" => visibility_text, "reason" => "visibility");
+        debug!(id = &status.id.to_string(), instance = %&instance_url, reason = "post_visibility", "Skipping status");
+        increment_counter!(EVENTS_SKIPPED, "visibility" => visibility_text, "reason" => "post_visibility");
 
         return Ok(());
     }
@@ -80,10 +82,7 @@ async fn process_status(postgres: Postgres, status: Status) -> Result<()> {
         .await?;
 
     if instance.blacklisted {
-        debug!(
-            "Skipping update {:?} because instance is blacklisted",
-            &status
-        );
+        debug!(id = &status.id.to_string(), instance = %&instance_url, reason = "instance_blacklist", "Skipping status");
         increment_counter!(EVENTS_SKIPPED, "visibility" => visibility_text, "reason" => "instance_blacklist");
     }
 
@@ -98,7 +97,7 @@ async fn process_status(postgres: Postgres, status: Status) -> Result<()> {
         .await?;
 
     if postgres.is_user_blacklisted(user.id).await? {
-        debug!("Skipping update {:?} because user is blacklisted", &status);
+        debug!(id = &status.id.to_string(), instance = %&instance_url, reason = "user_blacklist", "Skipping status");
         increment_counter!(EVENTS_SKIPPED, "visibility" => visibility_text, "reason" => "user_blacklist");
 
         return Ok(());

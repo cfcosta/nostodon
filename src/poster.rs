@@ -66,7 +66,7 @@ pub async fn spawn(postgres: Postgres) -> Result<()> {
         match task(postgres.clone(), item).await {
             Ok(_) => continue,
             Err(e) => {
-                error!("Got an error when fetching mastodon updates: {:?}", e);
+                error!(error = %e, "Error while receiving item from the stream");
                 continue;
             }
         }

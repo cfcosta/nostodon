@@ -8,6 +8,7 @@ use metrics::{describe_counter, increment_counter, register_counter, register_hi
 use tokio::time::timeout_at;
 use tracing::trace;
 
+pub const EVENTS_SCHEDULED: &str = "nostodon_mastodon_events_scheduled_count";
 pub const EVENTS_SKIPPED: &str = "nostodon_mastodon_events_skipped_count";
 pub const TASK_COUNT: &str = "nostodon_task_count";
 pub const TASK_TIMEOUT_COUNT: &str = "nostodon_task_timeout_count";
@@ -23,6 +24,11 @@ impl Provider {
         describe_counter!(
             EVENTS_SKIPPED,
             "Counter of events that have been skipped because of some rule"
+        );
+
+        describe_counter!(
+            EVENTS_SCHEDULED,
+            "Counter of events that have been scheduled to be posted"
         );
 
         describe_counter!(TASK_COUNT, "Counter of tasks that have been processed");
