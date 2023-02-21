@@ -165,6 +165,16 @@ impl Postgres {
             .fetch_all(&self.pool).time_as("postgres.fetch_servers").await?)
     }
 
+    pub async fn fetch_nostr_relays(&self) -> Result<Vec<String>> {
+        Ok(sqlx::query!("select url from nostr_relays")
+            .fetch_all(&self.pool)
+            .time_as("postgres.fetch_relays")
+            .await?
+            .into_iter()
+            .map(|x| x.url)
+            .collect())
+    }
+
     pub async fn update_profile(&self, profile: Profile) -> Result<ChangeResult> {
         sqlx::query_as!(
             ResultContainer,

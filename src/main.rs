@@ -2,7 +2,7 @@ use ::metrics::increment_counter;
 use clap::Parser;
 use eyre::{eyre, ErrReport, Result};
 use futures_util::future::try_join_all;
-use health::POSTS_DELETED;
+use health::{POSTS_DELETED, Timeable};
 use mastodon_async::{
     prelude::{Event, Status},
     Visibility,
@@ -33,13 +33,13 @@ pub struct Config {
     pub postgres: postgres::PostgresConfig,
 }
 
-async fn spawn_poster(postgres: Postgres, config: Config) -> Result<()> {
-    let task = |postgres: Postgres, config: Config| async move {
+async fn spawn_poster(postgres: Postgres) -> Result<()> {
+    let task = |postgres: Postgres| async move {
         let mut stream = postgres.listener().update_stream().await?;
 
         let item = stream.recv().await?;
         let creds = postgres.fetch_credentials(item.user_id).await?;
-        let nostr = nostr::Nostr::connect(creds, config.nostr.clone().relays).await?;
+        let nostr = nostr::Nostr::connect(&postgres, creds).await?;
 
         let event_id = nostr
             .publish(nostr::Note::new_text(html2md::parse_html(&item.content)))
@@ -60,12 +60,11 @@ async fn spawn_poster(postgres: Postgres, config: Config) -> Result<()> {
         increment_counter!(POSTS_CREATED);
         dbg!(event_id.to_bech32()?);
 
-        #[allow(unreachable_code)]
         Ok::<_, ErrReport>(())
     };
 
     loop {
-        match task(postgres.clone(), config.clone()).await {
+        match task(postgres.clone()).await {
             Ok(_) => continue,
             Err(e) => {
                 println!("Got an error: {e}");
@@ -134,7 +133,7 @@ async fn process_status(postgres: Postgres, status: Status, relays: Vec<String>)
     let profile = Profile::build(instance.id, user_id, &status)?;
 
     if postgres.update_profile(profile.clone()).await?.changed() {
-        let nostr = nostr::Nostr::connect(creds, relays).await?;
+        let nostr = nostr::Nostr::connect(&postgres, creds).await?;
         nostr.update_user_profile(profile).await?;
         increment_counter!(PROFILES_UPDATED);
     }
@@ -169,7 +168,7 @@ async fn spawn(server: MastodonServer, config: Config, postgres: Postgres) -> Re
                             let creds = postgres.fetch_credentials(user_id).await?;
 
                             let nostr =
-                                nostr::Nostr::connect(creds, config.nostr.clone().relays).await?;
+                                nostr::Nostr::connect(&postgres, creds).await?;
 
                             nostr.delete_event(event_id).await?;
 
@@ -180,6 +179,7 @@ async fn spawn(server: MastodonServer, config: Config, postgres: Postgres) -> Re
                 }
                 Event::Update(status) => {
                     match process_status(postgres.clone(), status, config.nostr.relays.clone())
+                        .time_as("mastodon.process_status")
                         .await
                     {
                         Ok(_) => continue,
@@ -215,7 +215,7 @@ async fn main() -> Result<()> {
         tasks.push(spawn(server, config.clone(), postgres.clone()));
     }
 
-    task::spawn(spawn_poster(postgres.clone(), config.clone()));
+    task::spawn(spawn_poster(postgres.clone()));
 
     if tasks.is_empty() {
         return Err(eyre!(

@@ -3,6 +3,8 @@ use sqlx::{postgres::PgListener, Pool, Postgres};
 use tokio::sync::broadcast::{self, Receiver, Sender};
 use uuid::Uuid;
 
+use crate::health::Timeable;
+
 use super::ChangeResult;
 
 #[derive(Debug, Clone, sqlx::Type)]
@@ -43,6 +45,7 @@ async fn poll_job(pool: &Pool<Postgres>) -> Result<Option<ScheduledPost>> {
             "#
     )
     .fetch_optional(pool)
+    .time_as("postgres.job_queue.poll_job")
     .await?)
 }
 
@@ -68,6 +71,7 @@ impl JobQueue {
             post.content
         )
         .execute(&self.pool)
+            .time_as("postgres.job_queue.push")
         .await?;
 
         Ok(())
@@ -83,6 +87,7 @@ impl JobQueue {
             mastodon_id
         )
         .fetch_one(&self.pool)
+            .time_as("postgres.job_queue.finish")
         .await?
         .to_change_result()
     }
@@ -102,7 +107,7 @@ impl JobQueue {
             listener.listen("scheduled_posts_status_channel").await?;
 
             loop {
-                while let Ok(_) = listener.recv().await {
+                while let Ok(_) = listener.recv().time_as("postgres.job_queue.recv").await {
                     if let Some(job) = poll_job(&pool).await? {
                         sender.send(job)?;
                     }

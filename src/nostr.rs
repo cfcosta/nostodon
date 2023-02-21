@@ -2,7 +2,10 @@ use clap::Parser;
 use eyre::Result;
 use nostr_sdk::prelude::*;
 
-use crate::{health::Timeable, postgres::Profile};
+use crate::{
+    health::Timeable,
+    postgres::{Postgres, Profile},
+};
 
 #[derive(Debug, Clone, Parser)]
 pub struct NostrConfig {
@@ -31,8 +34,9 @@ pub struct Nostr {
 }
 
 impl Nostr {
-    pub async fn connect(keypair: Keys, relays: Vec<String>) -> Result<Self> {
+    pub async fn connect(postgres: &Postgres, keypair: Keys) -> Result<Self> {
         let opts = Options::new().wait_for_connection(true).wait_for_send(true);
+        let relays = postgres.fetch_nostr_relays().await?;
 
         let this = Self {
             client: Client::new_with_opts(&keypair, opts),
