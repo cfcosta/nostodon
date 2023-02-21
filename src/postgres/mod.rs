@@ -14,20 +14,12 @@ use self::job_queue::{JobQueue, ScheduledPost};
 #[derive(Debug, Clone, Parser)]
 pub struct PostgresConfig {
     #[clap(short = 'd', long = "database-url", env = "NOSTODON_DATABASE_URL")]
+    /// Url to a PostgreSQL database
     pub url: String,
-}
-
-pub struct IdContainer {
-    pub result: Uuid,
 }
 
 pub struct ResultContainer {
     pub result: Option<String>,
-}
-
-pub struct KeysContainer {
-    pub nostr_public_key: String,
-    pub nostr_private_key: String,
 }
 
 impl ResultContainer {
@@ -178,7 +170,10 @@ impl Postgres {
     }
 
     pub async fn migrate(&self) -> Result<()> {
-        sqlx::migrate!().run(&self.pool).await?;
+        sqlx::migrate!()
+            .run(&self.pool)
+            .time_as("postgres.migrate")
+            .await?;
         Ok(())
     }
 
@@ -223,8 +218,7 @@ impl Postgres {
     }
 
     pub async fn add_post(&self, post: MastodonPost) -> Result<ChangeResult> {
-        let result = sqlx::query_as!(
-            IdContainer,
+        let result = sqlx::query!(
             r#"insert into mastodon_posts
                 (instance_id, user_id, mastodon_id, nostr_id, status)
             values ($1, $2, $3, $4, $5)
@@ -265,8 +259,7 @@ impl Postgres {
     }
 
     pub async fn fetch_credentials(&self, user_id: Uuid) -> Result<Keys> {
-        let result = sqlx::query_as!(
-            KeysContainer,
+        let result = sqlx::query!(
             "select nostr_public_key, nostr_private_key from users where id = $1 limit 1",
             user_id
         )
@@ -309,8 +302,7 @@ impl Postgres {
     ) -> Result<Uuid> {
         let new_keypair = Keys::generate();
 
-        let result = sqlx::query_as!(
-            IdContainer,
+        let result = sqlx::query!(
             "insert into users
                 (instance_id, nostr_public_key, nostr_private_key, mastodon_user)
             values ($1, $2, $3, $4)
