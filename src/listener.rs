@@ -93,25 +93,25 @@ async fn process_status(postgres: Postgres, status: Status) -> Result<()> {
         instance_url.host().unwrap()
     );
 
-    let user_id = postgres
+    let user = postgres
         .fetch_or_create_user(instance.id, nip05.clone())
         .await?;
 
-    if postgres.is_user_blacklisted(user_id).await? {
+    if postgres.is_user_blacklisted(user.id).await? {
         debug!("Skipping update {:?} because user is blacklisted", &status);
         increment_counter!(EVENTS_SKIPPED, "visibility" => visibility_text, "reason" => "user_blacklist");
 
         return Ok(());
     }
 
-    let profile = Profile::build(instance.id, user_id, &status)?;
+    let profile = Profile::build(instance.id, user.id, &status)?;
 
     postgres
         .listener()
         .push(ScheduledPost {
             content: status.content,
             instance_id: instance.id,
-            user_id,
+            user_id: user.id,
             mastodon_id: status.id.to_string(),
             profile_name: profile.name,
             profile_display_name: profile.display_name,

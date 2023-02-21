@@ -33,6 +33,11 @@ impl ResultContainer {
     }
 }
 
+pub struct User {
+    pub id: Uuid,
+    pub nostr_creds: Keys,
+}
+
 #[derive(Debug, Clone)]
 pub struct MastodonInstance {
     pub id: Uuid,
@@ -281,7 +286,7 @@ impl Postgres {
         &self,
         instance_id: Uuid,
         username: T,
-    ) -> Result<Uuid> {
+    ) -> Result<User> {
         let new_keypair = Keys::generate();
 
         let result = sqlx::query!(
@@ -289,7 +294,7 @@ impl Postgres {
                 (instance_id, nostr_public_key, nostr_private_key, mastodon_user)
             values ($1, $2, $3, $4)
             on conflict (mastodon_user) do update set instance_id = $1
-            returning id as result",
+            returning id, nostr_private_key",
             instance_id,
             new_keypair.public_key().to_bech32()?,
             new_keypair.secret_key().unwrap().to_bech32()?,
@@ -299,7 +304,10 @@ impl Postgres {
         .time_as("postgres.fetch_or_create_user")
         .await?;
 
-        Ok(result.result)
+        Ok(User {
+            id: result.id,
+            nostr_creds: Keys::from_sk_str(&result.nostr_private_key)?,
+        })
     }
 
     pub async fn is_user_blacklisted(&self, user_id: Uuid) -> Result<bool> {
