@@ -60,9 +60,10 @@ impl JobQueue {
     pub async fn push(&self, post: ScheduledPost) -> Result<()> {
         sqlx::query!(
             r#"
-            insert into scheduled_posts (user_id, mastodon_id, content, status)
-            values ($1, $2, $3, 'new')"#,
+            insert into scheduled_posts (user_id, instance_id, mastodon_id, content, status)
+            values ($1, $2, $3, $4, 'new') on conflict do nothing"#,
             post.user_id,
+            post.instance_id,
             post.mastodon_id,
             post.content
         )
