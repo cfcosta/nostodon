@@ -18,9 +18,9 @@ async fn process_item(postgres: Postgres, item: ScheduledPost) -> Result<()> {
         increment_counter!(PROFILES_UPDATED);
     }
 
-    let event_id = nostr
-        .publish(Note::new_text(html2md::parse_html(&item.content)))
-        .await?;
+    let note = Note::build(&postgres, &item).await?;
+
+    let event_id = nostr.publish(note).await?;
 
     let post = MastodonPost {
         instance_id: item.instance_id,

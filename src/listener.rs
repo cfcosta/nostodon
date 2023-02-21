@@ -112,6 +112,7 @@ async fn process_status(postgres: Postgres, status: Status) -> Result<()> {
             instance_id: instance.id,
             user_id: user.id,
             mastodon_id: status.id.to_string(),
+            in_reply_to: status.in_reply_to_id,
             profile_name: profile.name,
             profile_display_name: profile.display_name,
             profile_about: profile.about,

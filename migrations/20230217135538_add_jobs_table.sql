@@ -5,6 +5,7 @@ create table scheduled_posts (
   user_id uuid not null,
   instance_id uuid not null,
   mastodon_id text not null,
+  in_reply_to text,
   content text not null,
   profile_name text not null,
   profile_display_name text not null,

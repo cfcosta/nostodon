@@ -3,21 +3,35 @@ use nostr_sdk::prelude::*;
 
 use crate::{
     health::Timeable,
-    postgres::{Postgres, Profile},
+    postgres::{job_queue::ScheduledPost, Postgres, Profile},
 };
 
 #[derive(Debug, Clone, Default)]
 pub struct Note {
     pub text: String,
-    pub tags: Vec<nostr_sdk::prelude::Tag>,
+    pub tags: Vec<Tag>,
 }
 
 impl Note {
-    pub fn new_text<T: Into<String>>(text: T) -> Self {
-        Self {
-            text: text.into(),
-            ..Default::default()
+    pub async fn build(postgres: &Postgres, post: &ScheduledPost) -> Result<Self> {
+        let mut tags = vec![];
+
+        if let Some(root) = &post.in_reply_to {
+            if let Some(event_id) = postgres.fetch_nostr_id(root.to_string()).await? {
+                // Tracks the relationship between replies
+                tags.push(Tag::Event(
+                    EventId::from_bech32(event_id)?,
+                    // TODO: Add one of the configured relays here
+                    None,
+                    Some("root".into()),
+                ));
+            }
         }
+
+        Ok(Self {
+            text: html2md::parse_html(&post.content),
+            tags,
+        })
     }
 }
 

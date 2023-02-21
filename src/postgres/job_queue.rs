@@ -22,6 +22,7 @@ pub struct ScheduledPost {
     pub user_id: Uuid,
     pub instance_id: Uuid,
     pub mastodon_id: String,
+    pub in_reply_to: Option<String>,
     pub content: String,
     pub profile_name: String,
     pub profile_display_name: String,
@@ -48,7 +49,7 @@ async fn poll_job(pool: &Pool<Postgres>) -> Result<Option<ScheduledPost>> {
                 for update skip locked
                 limit 1
              ) returning 
-                user_id, instance_id, mastodon_id, content,
+                user_id, instance_id, mastodon_id, in_reply_to, content,
                 profile_name, profile_display_name, profile_about,
                 profile_picture, profile_nip05, profile_banner
             "#

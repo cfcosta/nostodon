@@ -222,6 +222,18 @@ impl Postgres {
         .to_change_result()
     }
 
+    pub async fn fetch_nostr_id(&self, mastodon_id: String) -> Result<Option<String>> {
+        let result = sqlx::query!(
+            r#"select nostr_id from mastodon_posts where mastodon_id = $1"#,
+            mastodon_id
+        )
+        .fetch_optional(&self.pool)
+        .time_as("postgres.fetch_nostr_id")
+        .await?;
+
+        Ok(result.map(|x| x.nostr_id))
+    }
+
     pub async fn add_post(&self, post: MastodonPost) -> Result<ChangeResult> {
         let result = sqlx::query!(
             r#"insert into mastodon_posts
