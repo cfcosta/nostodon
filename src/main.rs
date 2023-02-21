@@ -43,11 +43,20 @@ async fn spawn_poster(postgres: Postgres) -> Result<()> {
             let creds = postgres.fetch_credentials(item.user_id).await?;
             let nostr = nostr::Nostr::connect(&postgres, creds).await?;
 
+            let profile: Profile = item.clone().into();
+            if postgres.update_profile(&profile).await?.changed() {
+                nostr.update_user_profile(profile).await?;
+                increment_counter!(PROFILES_UPDATED);
+            }
+
             let event_id = match nostr
                 .publish(nostr::Note::new_text(html2md::parse_html(&item.content)))
                 .await
             {
-                Ok(id) => id,
+                Ok(id) => {
+                    println!("EVENT_ID: {id}");
+                    id
+                }
                 e => {
                     postgres.listener().error(item.mastodon_id.clone()).await?;
                     e?
@@ -137,15 +146,7 @@ async fn process_status(postgres: Postgres, status: Status) -> Result<()> {
         return Ok(());
     }
 
-    let creds = postgres.fetch_credentials(user_id).await?;
-
     let profile = Profile::build(instance.id, user_id, &status)?;
-
-    if postgres.update_profile(profile.clone()).await?.changed() {
-        let nostr = nostr::Nostr::connect(&postgres, creds).await?;
-        nostr.update_user_profile(profile).await?;
-        increment_counter!(PROFILES_UPDATED);
-    }
 
     postgres
         .listener()
@@ -154,13 +155,19 @@ async fn process_status(postgres: Postgres, status: Status) -> Result<()> {
             instance_id: instance.id,
             user_id,
             mastodon_id: status.id.to_string(),
+            profile_name: profile.name,
+            profile_display_name: profile.display_name,
+            profile_about: profile.about,
+            profile_picture: profile.picture,
+            profile_nip05: profile.nip05,
+            profile_banner: profile.banner,
         })
         .await?;
 
     Ok(())
 }
 
-async fn spawn(server: MastodonServer, postgres: Postgres) -> Result<()> {
+async fn spawn_listener(server: MastodonServer, postgres: Postgres) -> Result<()> {
     let mastodon = mastodon::Mastodon::connect(server)?;
 
     let mut rx = mastodon.update_stream().await?;
@@ -221,7 +228,7 @@ async fn main() -> Result<()> {
     let mut tasks = vec![];
 
     for server in postgres.fetch_servers().await?.into_iter() {
-        tasks.push(spawn(server, postgres.clone()));
+        tasks.push(spawn_listener(server, postgres.clone()));
     }
 
     if !config.skip_posting {

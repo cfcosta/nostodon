@@ -23,6 +23,12 @@ pub struct ScheduledPost {
     pub instance_id: Uuid,
     pub mastodon_id: String,
     pub content: String,
+    pub profile_name: String,
+    pub profile_display_name: String,
+    pub profile_about: String,
+    pub profile_picture: String,
+    pub profile_nip05: String,
+    pub profile_banner: String
 }
 
 pub struct JobQueue {
@@ -41,7 +47,10 @@ async fn poll_job(pool: &Pool<Postgres>) -> Result<Option<ScheduledPost>> {
                 order by id
                 for update skip locked
                 limit 1
-             ) returning instance_id, user_id, mastodon_id, content
+             ) returning 
+                user_id, instance_id, mastodon_id, content,
+                profile_name, profile_display_name, profile_about,
+                profile_picture, profile_nip05, profile_banner
             "#
     )
     .fetch_optional(pool)
@@ -63,12 +72,23 @@ impl JobQueue {
     pub async fn push(&self, post: ScheduledPost) -> Result<()> {
         sqlx::query!(
             r#"
-            insert into scheduled_posts (user_id, instance_id, mastodon_id, content, status)
-            values ($1, $2, $3, $4, 'new') on conflict do nothing"#,
+            insert into scheduled_posts
+                (user_id, instance_id, mastodon_id, content, status,
+                 profile_name, profile_display_name, profile_about,
+                profile_picture, profile_nip05, profile_banner)
+            values
+                ($1, $2, $3, $4, 'new', $5, $6, $7, $8, $9, $10)
+            on conflict do nothing"#,
             post.user_id,
             post.instance_id,
             post.mastodon_id,
-            post.content
+            post.content,
+            post.profile_name,
+            post.profile_display_name,
+            post.profile_about,
+            post.profile_picture,
+            post.profile_nip05,
+            post.profile_banner,
         )
         .execute(&self.pool)
         .time_as("postgres.job_queue.push")

@@ -6,6 +6,12 @@ create table scheduled_posts (
   instance_id uuid not null,
   mastodon_id text not null,
   content text not null,
+  profile_name text not null,
+  profile_display_name text not null,
+  profile_about text not null,
+  profile_picture text not null,
+  profile_nip05 text not null,
+  profile_banner text not null,
   status scheduled_post_status not null default 'new',
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()

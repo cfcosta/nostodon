@@ -9,7 +9,7 @@ pub mod job_queue;
 
 use crate::{health::Timeable, util::extract_instance_url};
 
-use self::job_queue::JobQueue;
+use self::job_queue::{JobQueue, ScheduledPost};
 
 #[derive(Debug, Clone, Parser)]
 pub struct PostgresConfig {
@@ -84,6 +84,21 @@ impl Profile {
             picture: status.account.avatar.clone(),
             banner: status.account.header.clone(),
         })
+    }
+}
+
+impl From<ScheduledPost> for Profile {
+    fn from(value: ScheduledPost) -> Self {
+        Self {
+            instance_id: value.instance_id,
+            user_id: value.user_id,
+            name: value.profile_name,
+            display_name: value.profile_display_name,
+            about: value.profile_about,
+            picture: value.profile_picture,
+            nip05: value.profile_nip05,
+            banner: value.profile_banner,
+        }
     }
 }
 
@@ -175,15 +190,15 @@ impl Postgres {
             .collect())
     }
 
-    pub async fn update_profile(&self, profile: Profile) -> Result<ChangeResult> {
+    pub async fn update_profile(&self, profile: &Profile) -> Result<ChangeResult> {
         sqlx::query_as!(
             ResultContainer,
             "insert into profiles
-                (instance_id, user_id, name, display_name, about, picture, nip05)
+                (instance_id, user_id, name, display_name, about, picture, nip05, banner)
             values
-                ($1, $2, $3, $4, $5, $6, $7)
+                ($1, $2, $3, $4, $5, $6, $7, $8)
             on conflict (user_id) do update set
-                name = $3, display_name = $4, about = $5, picture = $6, nip05 = $7
+                name = $3, display_name = $4, about = $5, picture = $6, nip05 = $7, banner = $8
             returning case when xmax = 0 then id::text else 'unchanged' end as result",
             profile.instance_id,
             profile.user_id,
@@ -191,7 +206,8 @@ impl Postgres {
             profile.display_name,
             profile.about,
             profile.picture,
-            profile.nip05
+            profile.nip05,
+            profile.banner
         )
         .fetch_one(&self.pool)
         .time_as("postgres.update_profile")

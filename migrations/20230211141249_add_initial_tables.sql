@@ -40,6 +40,7 @@ create table profiles (
     about text not null,
     picture text not null,
     nip05 text not null,
+    banner text not null,
     created_at timestamptz not null default now(),
     updated_at timestamptz not null default now()
 );
