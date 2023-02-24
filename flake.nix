@@ -49,7 +49,7 @@
           inherit system pkgs;
 
           modules = [
-            "${nixpkgs}/nixos/modules/virtualisation/amazon-image.nix"
+            "${nixpkgs}/nixos/modules/virtualisation/linode-image.nix"
             ./ops/core-server.nix
           ];
         };

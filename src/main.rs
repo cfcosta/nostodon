@@ -1,6 +1,7 @@
 use clap::Parser;
 use eyre::Result;
 use tokio::task;
+use tracing::info;
 
 mod health;
 mod listener;
@@ -24,10 +25,14 @@ pub struct Config {
 
 #[tokio::main]
 async fn main() -> Result<()> {
-    tracing_subscriber::fmt::init();
-    health::Provider::setup();
-
     let config = Config::parse();
+
+    tracing_subscriber::fmt::init();
+    info!("Tracing layer initialized.");
+
+    health::Provider::setup();
+    info!("Metrics initialized");
+
     let postgres = Postgres::init(config.clone().postgres).await?;
 
     postgres.health_check().await?;
