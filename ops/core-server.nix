@@ -11,7 +11,8 @@ let
 in {
   imports = [ ./linode-base.nix ];
 
-  environment.systemPackages = with pkgs; [ nostodon neovim ];
+  # TODO: Move debugging tools into a flag
+  environment.systemPackages = with pkgs; [ nostodon neovim htop tmux ];
 
   networking.hostName = "nostodon-core-server";
   security.sudo.wheelNeedsPassword = false;
@@ -66,24 +67,55 @@ in {
       ExecStart =
         "${pkgs.nostodon}/bin/nostodon --database-url ${database.full-url}";
 
-      # Hardening
-      CapabilityBoundingSet = [ "" ];
-      LockPersonality = true;
+      # Unit Sandboxing and Hardening
+      # Service has it's own unshared tmpfs
       PrivateTmp = true;
-      ProcSubset = "pid";
-      ProtectClock = true;
-      ProtectControlGroups = true;
-      ProtectHome = true;
-      ProtectHostname = true;
-      ProtectKernelLogs = true;
-      ProtectKernelModules = true;
-      ProtectKernelTunables = true;
-      ProtectProc = "invisible";
+      # Service can not see or change real devices
+      PrivateDevices = true;
+      # No capabilities by default
+      CapabilityBoundingSet = [ "" ];
+      AmbientCapabilities = [ "" ];
+      # Protect the following from modification:
+      # - The entire filesystem
+      # - sysctl settings and loaded kernel modules
+      # - No modifications allowed to Control Groups
+      # - Hostname
+      # - System Clock
       ProtectSystem = "strict";
-      RestrictNamespaces = true;
-      RestrictRealtime = true;
-      RestrictSUIDSGID = true;
+      ProtectKernelTunables = true;
+      ProtectKernelModules = true;
+      ProtectControlGroups = true;
+      ProtectClock = true;
+      ProtectHostname = true;
+      # Prevent access to the following:
+      # - /home directory
+      # - Kernel logs
+      ProtectHome = "tmpfs";
+      ProtectKernelLogs = true;
+      # Make sure that the process can only see PIDs and process details of itself,
+      # and the second option disables seeing details of things like system load and
+      # I/O etc
+      ProtectProc = "invisible";
+      ProcSubset = "pid";
+      # While not needed, we set these options explicitly
+      # - This process has been given access to the host network
+      # - It can also communicate with any IP Address
+      PrivateNetwork = false;
+      RestrictAddressFamilies = [ "AF_INET" "AF_INET6" "AF_UNIX" ];
+      IPAddressAllow = "any";
+      # Restrict system calls
       SystemCallArchitectures = "native";
+      SystemCallFilter = [ "@system-service" "~@privileged @resources" ];
+      # Misc restrictions
+      RestrictSUIDSGID = true;
+      RemoveIPC = true;
+      NoNewPrivileges = true;
+      RestrictRealtime = true;
+      RestrictNamespaces = true;
+      LockPersonality = true;
+      PrivateUsers = true;
+      # Disable this if the application runs an or inside an interpreter
+      MemoryDenyWriteExecute = true;
     };
   };
 }
