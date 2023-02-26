@@ -24,7 +24,8 @@ in {
     extraGroups = [ "wheel" ];
 
     openssh.authorizedKeys.keys = [
-      "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIKxNmAeczwJgH2GQ/qCYlIiV0M+QTqr/ZnISpT0TP90A cfcosta@mothership"
+      "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIKxNmAeczwJgH2GQ/qCYlIiV0M+QTqr/ZnISpT0TP90A cfcosta@mothership" # cfcosta
+      "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIDBOIRUnjowxzSXnUewEq1gZlE0SPIsWDPnRnjGMEFha cfcosta@mothership" # github actions
     ];
   };
 
