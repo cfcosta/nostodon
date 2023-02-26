@@ -16,4 +16,5 @@ jobs:
         with:
           ssh-private-key: ${{ secrets.SSH_PRIVATE_KEY }}
       - uses: cachix/install-nix-action@v16
+      - run: ssh-keyscan -H 50.116.47.185 >> ~/.ssh/known_hosts
       - run: ./deploy.sh
